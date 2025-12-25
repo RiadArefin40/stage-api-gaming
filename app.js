@@ -232,7 +232,7 @@ app.post("/launch_game", async (req, res) => {
         await client.query(
       `INSERT INTO active_game_sessions (user_id, game_type)
        VALUES ($1, $2)`,
-      [user.id, game_uid, game_type]
+      [user.id, game_type]
     );
 
     await client.query("COMMIT");
