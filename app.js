@@ -226,15 +226,19 @@ app.post("/launch_game", async (req, res) => {
 
     const user = userResult.rows[0];
     console.log('eser',user )
+   if(game_type){
 
-      // Insert or update active session
-    await client.query(
+        await client.query(
       `INSERT INTO active_game_sessions (user_id, game_uid, game_type)
        VALUES ($1, $2, $3)`,
       [user.id, game_uid, game_type]
     );
 
     await client.query("COMMIT");
+
+   }
+      // Insert or update active session
+
 
     const wallet_amount = parseFloat(user.wallet); // Use wallet as credit amount
 
