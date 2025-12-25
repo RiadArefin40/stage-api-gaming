@@ -118,8 +118,8 @@ app.post("/result", async (req, res) => {
       // Optional: log turnover usage
       console.log('reducing--ttt',newTurnover )
       await client.query(
-        `INSERT INTO user_turnover_history (user_id, amount)
-         VALUES ($1, $2)`,
+        `INSERT INTO user_turnover_history (user_id, amount, type)
+         VALUES ($1, $2, 'bet')`,
         [user.id, bet_amount]
       );
     }
@@ -199,7 +199,7 @@ export function decrypt(encryptedBase64) {
 }
 
 app.post("/launch_game", async (req, res) => {
-  const { userName, game_uid, credit_amount } = req.body;
+  const { userName, game_uid, credit_amount, game_type} = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
    console.log('userid',userName )
   if (!userName || !game_uid || !credit_amount) {
@@ -226,6 +226,16 @@ app.post("/launch_game", async (req, res) => {
 
     const user = userResult.rows[0];
     console.log('eser',user )
+
+      // Insert or update active session
+    await client.query(
+      `INSERT INTO active_game_sessions (user_id, game_uid, game_type)
+       VALUES ($1, $2, $3)`,
+      [user.id, game_uid, game_type]
+    );
+
+    await client.query("COMMIT");
+
     const wallet_amount = parseFloat(user.wallet); // Use wallet as credit amount
 
     if (wallet_amount <= 0) {
