@@ -105,21 +105,7 @@ app.post("/result", async (req, res) => {
     await client.query("COMMIT");
     console.log("User wallet updated:", newWallet);
 
-    // Optional: forward to another API
-    try {
-      const forwardRes = await axios.post("https://api.bajiraj.cloud/users", {
-        mobile,
-        wallet: newWallet,
-        bet_amount,
-        win_amount,
-        change,
-        currency_code,
-        timestamp,
-      });
-      console.log("Forward response:", forwardRes.data);
-    } catch (forwardErr) {
-      console.error("Error forwarding wallet update:", forwardErr.message);
-    }
+
 
     return res.status(200).json({
       status: "success",
