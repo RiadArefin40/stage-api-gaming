@@ -156,6 +156,27 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// Get user balance
+router.get("/:id/balance", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "SELECT wallet FROM users WHERE id = $1",
+      [id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ balance: result.rows[0].wallet });
+  } catch (err) {
+    console.error("Balance API error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 
 // Toggle active / deactive user
