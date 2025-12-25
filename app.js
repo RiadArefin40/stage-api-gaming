@@ -6,6 +6,7 @@ import userRoutes from "./routes/user.routes.js";
 import depositRoutes from "./routes/deposit.routes.js";
 import promoRoutes from "./routes/promos.routes.js"
 import widthdrawRoutes from "./routes/widthdraw.routes.js"
+import { pool } from "./db.js";
 // import gameRoutes from "./routes/game.routes.js"
 const app = express();
 
