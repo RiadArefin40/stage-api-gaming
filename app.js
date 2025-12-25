@@ -13,6 +13,12 @@ const AES_KEY = "60fe91cdffa48eeca70403b3656446";
 const app = express();
 
 app.use(cors());
+
+app.use(cors({
+    origin: "https://bajiraj.cloud",
+    methods: ["GET","POST","PUT","DELETE","OPTIONS","PATCH"],
+    credentials: true
+}));
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -121,7 +127,7 @@ export function decrypt(encryptedBase64) {
   }
 }
 
-app.post("/launch_game", async (req, res) => {
+app.post("/api/launch_game", async (req, res) => {
   const { userName, game_uid, credit_amount } = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
   
