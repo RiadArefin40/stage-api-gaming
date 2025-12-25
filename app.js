@@ -102,6 +102,31 @@ app.post("/result", async (req, res) => {
       [newWallet, user.id]
     );
 
+
+
+    let newTurnover = user.turnover;
+
+    if (user.turnover > 0 && bet_amount > 0) {
+      console.log('reducing--ttt',newTurnover )
+      newTurnover = Math.max(0, user.turnover - bet_amount);
+
+      await client.query(
+        "UPDATE users SET turnover = $1 WHERE id = $2",
+        [newTurnover, user.id]
+      );
+
+      // Optional: log turnover usage
+      console.log('reducing--ttt',newTurnover )
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, amount, type)
+         VALUES ($1, $2, 'bet')`,
+        [user.id, bet_amount]
+      );
+    }
+
+
+
+
     await client.query("COMMIT");
     console.log("User wallet updated:", newWallet);
 
