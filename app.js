@@ -116,12 +116,12 @@ app.post("/result", async (req, res) => {
       );
 
       // Optional: log turnover usage
-      console.log('reducing--ttt',newTurnover )
-      await client.query(
-        `INSERT INTO user_turnover_history (user_id, amount, type)
-         VALUES ($1, $2, 'bet')`,
-        [user.id, bet_amount]
-      );
+      // console.log('reducing--ttt',newTurnover )
+      // await client.query(
+      //   `INSERT INTO user_turnover_history (user_id, amount, type)
+      //    VALUES ($1, $2, 'bet')`,
+      //   [user.id, bet_amount]
+      // );
     }
 
 
@@ -227,7 +227,7 @@ app.post("/launch_game", async (req, res) => {
     const user = userResult.rows[0];
     console.log('eser',user )
    if(game_type){
-
+ console.log('eser',user )
         await client.query(
       `INSERT INTO active_game_sessions (user_id, game_uid, game_type)
        VALUES ($1, $2, $3)`,
