@@ -14,17 +14,33 @@ const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";
 const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
 
-app.use(cors());
-
-app.use(cors({
-    origin: "https://bajiraj.cloud",
-    methods: ["GET","POST","PUT","DELETE","OPTIONS","PATCH"],
-    credentials: true
-}));
 app.use(express.json());
+
+const allowedOrigins = [
+  "https://bajiraj.cloud",
+  "https://admin.bajiraj.cloud"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    credentials: true,
+  })
+);
+
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-
+app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
