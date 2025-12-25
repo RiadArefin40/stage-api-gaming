@@ -19,12 +19,13 @@ router.get("/", async (req, res) => {
  * CREATE promo
  */
 router.post("/", async (req, res) => {
-  const { code, depositBonus, turnover, active } = req.body;
+  const { code, depositBonus, turnover, active, promo_type } = req.body;
 
-  if (!code || !depositBonus || !turnover)
+  if (!code || depositBonus === undefined || turnover === undefined)
     return res.status(400).json({ error: "Missing fields" });
 
   try {
+    // Check if promo code already exists
     const exists = await pool.query(
       "SELECT id FROM promo_codes WHERE code=$1",
       [code]
@@ -33,11 +34,12 @@ router.post("/", async (req, res) => {
     if (exists.rows.length)
       return res.status(400).json({ error: "Promo already exists" });
 
+    // Insert new promo including promo_type (default 'any')
     const result = await pool.query(
-      `INSERT INTO promo_codes (code, deposit_bonus, turnover, active)
-       VALUES ($1,$2,$3,$4)
+      `INSERT INTO promo_codes (code, deposit_bonus, turnover, active, promo_type)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [code, depositBonus, turnover, active]
+      [code, depositBonus, turnover, active, promo_type || 'any']
     );
 
     res.json(result.rows[0]);
@@ -46,14 +48,16 @@ router.post("/", async (req, res) => {
   }
 });
 
+
 /**
  * UPDATE promo
  */
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { code, depositBonus, turnover, active } = req.body;
+  const { code, depositBonus, turnover, active, promo_type } = req.body; // added promo_type
 
   try {
+    // Check for duplicate code excluding current id
     const exists = await pool.query(
       "SELECT id FROM promo_codes WHERE code=$1 AND id != $2",
       [code, id]
@@ -62,12 +66,13 @@ router.put("/:id", async (req, res) => {
     if (exists.rows.length)
       return res.status(400).json({ error: "Promo code already exists" });
 
+    // Update including promo_type
     const result = await pool.query(
       `UPDATE promo_codes 
-       SET code=$1, deposit_bonus=$2, turnover=$3, active=$4
-       WHERE id=$5
+       SET code=$1, deposit_bonus=$2, turnover=$3, active=$4, promo_type=$5
+       WHERE id=$6
        RETURNING *`,
-      [code, depositBonus, turnover, active, id]
+      [code, depositBonus, turnover, active, promo_type, id]
     );
 
     res.json(result.rows[0]);
@@ -75,6 +80,7 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /**
  * TOGGLE ACTIVE STATUS
