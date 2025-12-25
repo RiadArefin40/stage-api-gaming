@@ -107,7 +107,7 @@ app.post("/result", async (req, res) => {
 
 
         const sessionResult = await client.query(
-        `SELECT game_type, promo_code
+        `SELECT game_type
         FROM active_game_sessions
         WHERE user_id=$1
         ORDER BY started_at DESC
@@ -116,14 +116,14 @@ app.post("/result", async (req, res) => {
       );
 
       const session = sessionResult.rows[0];
-      console.log('okk', session)
+      console.log('okk', session.game_type)
    
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
       console.log('reducing--ttt',newTurnover )
       newTurnover = Math.max(0, user.turnover - bet_amount);
-
+      if(session.game_type == 'slot' || session.game_type == 'live-casino')
       await client.query(
         "UPDATE users SET turnover = $1 WHERE id = $2",
         [newTurnover, user.id]
