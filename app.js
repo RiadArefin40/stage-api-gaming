@@ -115,6 +115,7 @@ app.post("/result", async (req, res) => {
       );
 
       // Optional: log turnover usage
+      console.log('reducing--ttt',newTurnover )
       await client.query(
         `INSERT INTO user_turnover_history (user_id, amount, type)
          VALUES ($1, $2, 'bet')`,
