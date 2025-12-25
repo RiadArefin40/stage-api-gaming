@@ -49,27 +49,17 @@ app.use("/promos", promoRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
-app.post("/result",async (req, res) => {
-
+app.post("/result", async (req, res) => {
   console.log("Body:", req.body);
 
   if (!req.body || Object.keys(req.body).length === 0) {
-    return res.status(400).json({
-      error: "Empty body — callback not parsed",
-    });
+    return res.status(400).json({ error: "Empty body — callback not parsed" });
   }
-
-
-
-
 
   const {
     mobile,
     bet_amount,
     win_amount,
-    game_uid,
-    game_round,
-    token,
     wallet_before,
     wallet_after,
     change,
@@ -77,29 +67,74 @@ app.post("/result",async (req, res) => {
     timestamp,
   } = req.body;
 
+  const client = await pool.connect();
 
-   const userResult = await pool.query(
-      "SELECT id, wallet FROM users WHERE name=$1",
+  try {
+    await client.query("BEGIN");
+
+    // Lock user row to prevent race conditions
+    const userResult = await client.query(
+      "SELECT id, wallet FROM users WHERE name = $1 FOR UPDATE",
       [mobile]
     );
 
     if (!userResult.rows.length) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     const user = userResult.rows[0];
-    console.log('eser',user )
+    console.log("User before update:", user);
 
+    // Optional safety check: make sure wallet_before matches current DB value
+    if (Number(user.wallet) !== Number(wallet_before)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Wallet mismatch — possible data inconsistency",
+      });
+    }
 
+    // Update wallet
+    const newWallet = wallet_after; // or user.wallet + change
+    await client.query(
+      "UPDATE users SET wallet = $1 WHERE id = $2",
+      [newWallet, user.id]
+    );
 
-  return res.json({
-    status: "success",
-    message: "Callback received",
-  });
+    await client.query("COMMIT");
+    console.log("User wallet updated:", newWallet);
+
+    // Optional: forward to another API
+    try {
+      const forwardRes = await axios.post("https://api.bajiraj.cloud/users", {
+        mobile,
+        wallet: newWallet,
+        bet_amount,
+        win_amount,
+        change,
+        currency_code,
+        timestamp,
+      });
+      console.log("Forward response:", forwardRes.data);
+    } catch (forwardErr) {
+      console.error("Error forwarding wallet update:", forwardErr.message);
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Callback processed and wallet updated",
+      wallet: newWallet,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error processing callback:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  } finally {
+    client.release();
+  }
 });
+
 
 
 
