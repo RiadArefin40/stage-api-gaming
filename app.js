@@ -74,7 +74,7 @@ app.post("/result", async (req, res) => {
 
     // Lock user row to prevent race conditions
     const userResult = await client.query(
-      "SELECT id, wallet FROM users WHERE name = $1 FOR UPDATE",
+      "SELECT id, wallet, turnover FROM users WHERE name = $1 FOR UPDATE",
       [mobile]
     );
 
