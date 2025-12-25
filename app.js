@@ -199,6 +199,7 @@ export function decrypt(encryptedBase64) {
 }
 
 app.post("/launch_game", async (req, res) => {
+   const client = await pool.connect();
   const { userName, game_uid, credit_amount, game_type} = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
    console.log('userid',userName )
