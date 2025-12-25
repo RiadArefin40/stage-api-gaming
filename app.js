@@ -104,6 +104,20 @@ app.post("/result", async (req, res) => {
 
 
     console.log("User before update:", user);
+
+
+        const sessionResult = await client.query(
+        `SELECT game_type, promo_code
+        FROM active_game_sessions
+        WHERE user_id=$1
+        ORDER BY started_at DESC
+        LIMIT 1`,
+        [user.id]
+      );
+
+      const session = sessionResult.rows[0];
+      console.log('okk', session)
+   
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
