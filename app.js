@@ -87,13 +87,13 @@ app.post("/result", async (req, res) => {
    
 
     // Optional safety check: make sure wallet_before matches current DB value
-    if (Number(user.wallet) !== Number(wallet_before)) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: "Wallet mismatch — possible data inconsistency",
-      });
-    }
+    // if (Number(user.wallet) !== Number(wallet_before)) {
+    //   await client.query("ROLLBACK");
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Wallet mismatch — possible data inconsistency",
+    //   });
+    // }
 
     // Update wallet
     const newWallet = wallet_after; // or user.wallet + change
