@@ -230,7 +230,7 @@ app.post("/launch_game", async (req, res) => {
    if(game_type){
  console.log('eser',user )
         await client.query(
-      `INSERT INTO active_game_sessions (user_id, game_uid, game_type)
+      `INSERT INTO active_game_sessions (user_id, game_id, game_type)
        VALUES ($1, $2, $3)`,
       [user.id, game_uid, game_type]
     );
