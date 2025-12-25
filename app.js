@@ -72,9 +72,12 @@ app.post("/result", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Lock user row to prevent race conditions
+    // 🔒 Lock user row
     const userResult = await client.query(
-      "SELECT id, wallet FROM users WHERE name = $1 FOR UPDATE",
+      `SELECT id, wallet, turnover 
+       FROM users 
+       WHERE name = $1 
+       FOR UPDATE`,
       [mobile]
     );
 
@@ -84,9 +87,8 @@ app.post("/result", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    console.log("User before update:", user);
 
-    // Optional safety check: make sure wallet_before matches current DB value
+    // Safety check
     if (Number(user.wallet) !== Number(wallet_before)) {
       await client.query("ROLLBACK");
       return res.status(400).json({
@@ -95,23 +97,39 @@ app.post("/result", async (req, res) => {
       });
     }
 
-    // Update wallet
-    const newWallet = wallet_after; // or user.wallet + change
+    // ✅ Update wallet
     await client.query(
       "UPDATE users SET wallet = $1 WHERE id = $2",
-      [newWallet, user.id]
+      [wallet_after, user.id]
     );
 
+    // ✅ Reduce turnover
+    let newTurnover = user.turnover;
+
+    if (user.turnover > 0 && bet_amount > 0) {
+      newTurnover = Math.max(0, user.turnover - bet_amount);
+
+      await client.query(
+        "UPDATE users SET turnover = $1 WHERE id = $2",
+        [newTurnover, user.id]
+      );
+
+      // Optional: log turnover usage
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, amount, type)
+         VALUES ($1, $2, 'bet')`,
+        [user.id, bet_amount]
+      );
+    }
+
     await client.query("COMMIT");
-    console.log("User wallet updated:", newWallet);
-
-
 
     return res.status(200).json({
       status: "success",
-      message: "Callback processed and wallet updated",
-      wallet: newWallet,
+      wallet: wallet_after,
+      turnover_remaining: newTurnover,
     });
+
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error processing callback:", err);
