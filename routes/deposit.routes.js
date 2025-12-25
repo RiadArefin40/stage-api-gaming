@@ -96,16 +96,9 @@ router.patch("/:id/approve", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Fetch deposit + promo info
+    // 1️⃣ Lock deposit row ONLY
     const depositResult = await client.query(
-      `SELECT 
-         d.*, 
-         p.turnover AS promo_turnover,
-         p.id AS promo_id
-       FROM deposits d
-       LEFT JOIN promo_codes p ON d.promo_code = p.code
-       WHERE d.id = $1
-       FOR UPDATE`,
+      `SELECT * FROM deposits WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
@@ -116,46 +109,55 @@ router.patch("/:id/approve", async (req, res) => {
 
     const deposit = depositResult.rows[0];
 
-    // Approve deposit
+    if (deposit.status === "approved") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Deposit already approved" });
+    }
+
+    // 2️⃣ Get promo data (NO LOCK needed)
+    let promo = null;
+    if (deposit.promo_code) {
+      const promoResult = await client.query(
+        `SELECT id, turnover FROM promo_codes WHERE code = $1`,
+        [deposit.promo_code]
+      );
+      promo = promoResult.rows[0] || null;
+    }
+
+    // 3️⃣ Approve deposit
     await client.query(
-      "UPDATE deposits SET status = 'approved' WHERE id = $1",
+      `UPDATE deposits SET status = 'approved' WHERE id = $1`,
       [id]
     );
 
-    // Add balance to wallet
+    // 4️⃣ Add wallet balance
     await client.query(
-      "UPDATE users SET wallet = wallet + $1 WHERE id = $2",
+      `UPDATE users SET wallet = wallet + $1 WHERE id = $2`,
       [deposit.amount, deposit.user_id]
     );
 
-    // Apply turnover if promo exists
-    if (deposit.promo_turnover) {
-      const turnoverAmount = deposit.amount * deposit.promo_turnover;
+    // 5️⃣ Handle turnover
+    if (promo && promo.turnover) {
+      const turnoverAmount = deposit.amount * promo.turnover;
 
-      // Update user turnover
       await client.query(
-        "UPDATE users SET turnover = turnover + $1 WHERE id = $2",
+        `UPDATE users SET turnover = turnover + $1 WHERE id = $2`,
         [turnoverAmount, deposit.user_id]
       );
 
-      // Insert turnover history
       await client.query(
-        `INSERT INTO user_turnover_history (user_id, promo_id, amount)
+        `INSERT INTO user_turnover_history 
+         (user_id, promo_id, amount)
          VALUES ($1, $2, $3)`,
-        [deposit.user_id, deposit.promo_id, turnoverAmount]
+        [deposit.user_id, promo.id, turnoverAmount]
       );
     }
 
     await client.query("COMMIT");
 
-    const updatedDeposit = await client.query(
-      "SELECT * FROM deposits WHERE id = $1",
-      [id]
-    );
-
     res.json({
-      message: "Deposit approved",
-      deposit: updatedDeposit.rows[0],
+      message: "Deposit approved successfully",
+      deposit_id: id,
     });
 
   } catch (err) {
@@ -165,6 +167,7 @@ router.patch("/:id/approve", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
