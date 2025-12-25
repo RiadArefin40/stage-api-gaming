@@ -128,7 +128,7 @@ export function decrypt(encryptedBase64) {
   }
 }
 
-app.post("/api/launch_game", async (req, res) => {
+app.post("/launch_game", async (req, res) => {
   const { userName, game_uid, credit_amount } = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
   
