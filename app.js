@@ -107,6 +107,7 @@ app.post("/result", async (req, res) => {
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
+      console.log('reducing--ttt' )
       newTurnover = Math.max(0, user.turnover - bet_amount);
 
       await client.query(
