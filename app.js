@@ -49,9 +49,8 @@ app.use("/promos", promoRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
-app.post("/result", (req, res) => {
-  console.log("🎮 GAME CALLBACK RECEIVED");
-  console.log("Headers:", req.headers);
+app.post("/result",async (req, res) => {
+
   console.log("Body:", req.body);
 
   if (!req.body || Object.keys(req.body).length === 0) {
@@ -59,6 +58,10 @@ app.post("/result", (req, res) => {
       error: "Empty body — callback not parsed",
     });
   }
+
+
+
+
 
   const {
     mobile,
@@ -74,19 +77,23 @@ app.post("/result", (req, res) => {
     timestamp,
   } = req.body;
 
-  console.table({
-    mobile,
-    bet_amount,
-    win_amount,
-    game_uid,
-    game_round,
-    token,
-    wallet_before,
-    wallet_after,
-    change,
-    currency_code,
-    timestamp,
-  });
+
+   const userResult = await pool.query(
+      "SELECT id, wallet FROM users WHERE name=$1",
+      [mobile]
+    );
+
+    if (!userResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    const user = userResult.rows[0];
+    console.log('eser',user )
+
+
 
   return res.json({
     status: "success",
