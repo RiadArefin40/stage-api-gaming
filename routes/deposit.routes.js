@@ -91,31 +91,74 @@ router.get("/", async (req, res) => {
 // Approve deposit
 router.patch("/:id/approve", async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect(); // Get a client from the pool
 
   try {
-    // Check if deposit exists
-    const depositResult = await pool.query("SELECT * FROM deposits WHERE id=$1", [id]);
-    if (!depositResult.rows.length) return res.status(404).json({ error: "Deposit not found" });
+    await client.query("BEGIN"); // Start transaction
+
+    // Fetch deposit with promo info
+    const depositResult = await client.query(
+      `SELECT d.*, p.turnover AS promo_turnover, p.id AS promo_id
+       FROM deposits d
+       LEFT JOIN promo_codes p ON d.promo_id = p.id
+       WHERE d.id=$1 FOR UPDATE`, // Lock the row
+      [id]
+    );
+
+    if (!depositResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Deposit not found" });
+    }
 
     const deposit = depositResult.rows[0];
 
     // Update deposit status
-    await pool.query("UPDATE deposits SET status='approved' WHERE id=$1", [id]);
+    await client.query(
+      "UPDATE deposits SET status='approved' WHERE id=$1",
+      [id]
+    );
 
     // Add balance to user wallet
-    await pool.query(
+    await client.query(
       "UPDATE users SET wallet = wallet + $1 WHERE id=$2",
       [deposit.amount, deposit.user_id]
     );
 
+    // If turnover exists, add to user's total turnover
+    if (deposit.promo_turnover) {
+      const turnoverAmount = deposit.amount * deposit.promo_turnover;
+
+      // Update user's total turnover
+      await client.query(
+        "UPDATE users SET turnover = turnover + $1 WHERE id=$2",
+        [turnoverAmount, deposit.user_id]
+      );
+
+      // Log in user_turnover_history
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount)
+         VALUES ($1, $2, $3)`,
+        [deposit.user_id, deposit.promo_id, turnoverAmount]
+      );
+    }
+
+    await client.query("COMMIT"); // Commit transaction
+
     // Fetch the updated deposit
-    const updatedDepositResult = await pool.query("SELECT * FROM deposits WHERE id=$1", [id]);
+    const updatedDepositResult = await client.query(
+      "SELECT * FROM deposits WHERE id=$1",
+      [id]
+    );
 
     res.json({ message: "Deposit approved", deposit: updatedDepositResult.rows[0] });
   } catch (err) {
+    await client.query("ROLLBACK"); // Rollback on error
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release(); // Release client back to pool
   }
 });
+
 
 // Reject deposit
 router.patch("/:id/reject", async (req, res) => {
