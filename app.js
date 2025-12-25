@@ -8,12 +8,15 @@ import promoRoutes from "./routes/promos.routes.js"
 import widthdrawRoutes from "./routes/widthdraw.routes.js"
 import { pool } from "./db.js";
 // import gameRoutes from "./routes/game.routes.js"
+const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
+const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
-app.get("/test", (_, res) => res.send("Server running"));
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
@@ -70,11 +73,9 @@ app.post("/result", (req, res) => {
 
 
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
 
-const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
-const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
+
+
 
 
 function createKey(keyString) {
@@ -230,6 +231,6 @@ app.post("/launch_game", async (req, res) => {
 });
 
 
-
+app.get("/test", (_, res) => res.send("Server running"));
 
 export default app;
