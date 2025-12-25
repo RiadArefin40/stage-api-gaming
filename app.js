@@ -132,7 +132,7 @@ export function decrypt(encryptedBase64) {
 app.post("/launch_game", async (req, res) => {
   const { userName, game_uid, credit_amount } = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
-  
+   console.log('userid',userName )
   if (!userName || !game_uid || !credit_amount) {
     return res.status(400).json({ 
       success: false, 
@@ -156,6 +156,7 @@ app.post("/launch_game", async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    console.log('eser',user )
     const wallet_amount = parseFloat(user.wallet); // Use wallet as credit amount
 
     if (wallet_amount <= 0) {
@@ -171,7 +172,7 @@ app.post("/launch_game", async (req, res) => {
 
   // Create payload exactly like PHP code
   const requestData = {
-    user_id: user.name,
+    user_id: userName,
     wallet_amount: parseFloat(wallet_amount),
     game_uid: game_uid,
     token: API_TOKEN,
