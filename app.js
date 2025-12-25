@@ -13,7 +13,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (_, res) => res.send("Server running"));
+app.get("/test", (_, res) => res.send("Server running"));
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
