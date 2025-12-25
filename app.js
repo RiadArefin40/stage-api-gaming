@@ -50,7 +50,7 @@ app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
 app.post("/result", async (req, res) => {
-  console.log("Bodyy:", req.body);
+  console.log("Body:", req.body);
 
   if (!req.body || Object.keys(req.body).length === 0) {
     return res.status(400).json({ error: "Empty body — callback not parsed" });
@@ -72,12 +72,9 @@ app.post("/result", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 🔒 Lock user row
+    // Lock user row to prevent race conditions
     const userResult = await client.query(
-      `SELECT id, wallet, turnover 
-       FROM users 
-       WHERE name = $1 
-       FOR UPDATE`,
+      "SELECT id, wallet FROM users WHERE name = $1 FOR UPDATE",
       [mobile]
     );
 
@@ -87,8 +84,9 @@ app.post("/result", async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    console.log("User before update:", user);
 
-    // Safety check
+    // Optional safety check: make sure wallet_before matches current DB value
     if (Number(user.wallet) !== Number(wallet_before)) {
       await client.query("ROLLBACK");
       return res.status(400).json({
@@ -97,41 +95,23 @@ app.post("/result", async (req, res) => {
       });
     }
 
-    // ✅ Update wallet
+    // Update wallet
+    const newWallet = wallet_after; // or user.wallet + change
     await client.query(
       "UPDATE users SET wallet = $1 WHERE id = $2",
-      [wallet_after, user.id]
+      [newWallet, user.id]
     );
 
-    // ✅ Reduce turnover
-    let newTurnover = user.turnover;
-
-    if (user.turnover > 0 && bet_amount > 0) {
-      console.log('reducing--ttt' )
-      newTurnover = Math.max(0, user.turnover - bet_amount);
-
-      await client.query(
-        "UPDATE users SET turnover = $1 WHERE id = $2",
-        [newTurnover, user.id]
-      );
-
-      // Optional: log turnover usage
-      console.log('reducing--ttt',newTurnover )
-      await client.query(
-        `INSERT INTO user_turnover_history (user_id, amount, type)
-         VALUES ($1, $2, 'bet')`,
-        [user.id, bet_amount]
-      );
-    }
-
     await client.query("COMMIT");
+    console.log("User wallet updated:", newWallet);
+
+
 
     return res.status(200).json({
       status: "success",
-      wallet: wallet_after,
-      turnover_remaining: newTurnover,
+      message: "Callback processed and wallet updated",
+      wallet: newWallet,
     });
-
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error processing callback:", err);
