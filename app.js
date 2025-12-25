@@ -84,7 +84,7 @@ app.post("/result", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    console.log("User before update:", user);
+   
 
     // Optional safety check: make sure wallet_before matches current DB value
     if (Number(user.wallet) !== Number(wallet_before)) {
@@ -103,7 +103,7 @@ app.post("/result", async (req, res) => {
     );
 
 
-
+    console.log("User before update:", user);
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
