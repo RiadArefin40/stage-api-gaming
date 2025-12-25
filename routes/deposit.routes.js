@@ -46,13 +46,13 @@ router.post("/", async (req, res) => {
       }
 
       appliedPromo = promo_code;
-      bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
+      // bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
       // turnover_required = bonus * parseFloat(promo.rows[0].turnover);
 
-      const bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
+      bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
 
     const totalPlayable = amount + bonus;
-
+ 
     turnover_required =
    totalPlayable * parseFloat(promo.rows[0].turnover);
     }
