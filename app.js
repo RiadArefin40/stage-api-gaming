@@ -18,7 +18,8 @@ app.use(express.json());
 
 const allowedOrigins = [
   "https://bajiraj.cloud",
-  "https://admin.bajiraj.cloud"
+  "https://admin.bajiraj.cloud",
+  "http://localhost:3000"
 ];
 
 app.use(
