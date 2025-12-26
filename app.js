@@ -50,7 +50,7 @@ app.use("/users", userRoutes);
 app.use("/deposit", depositRoutes);
 app.use("/promos", promoRoutes);
 app.use("/payment-gateways", paymentGateway);
-app.use("/api/notifications", notificationRoutes);
+app.use("/notifications", notificationRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
