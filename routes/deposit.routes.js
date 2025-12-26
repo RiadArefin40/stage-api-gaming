@@ -95,14 +95,16 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /api/transactions/:userId
 router.get("/:userId", async (req, res) => {
   const { userId } = req.params;
-  
+
   if (!userId) {
     return res.status(400).json({ error: "userId is required" });
   }
 
   try {
+    // Make sure your table is called "transactions" and exists in the DB
     const result = await pool.query(
       `SELECT id, type, amount, status, created_at
        FROM transactions
@@ -111,15 +113,29 @@ router.get("/:userId", async (req, res) => {
       [userId]
     );
 
-    res.json(result.rows);
+    res.json({
+      success: true,
+      data: result.rows,
+    });
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching transactions:", err.message);
+
+    // Check if the table exists
+    if (err.routine === "parserOpenTable") {
+      return res.status(500).json({
+        success: false,
+        message: "Table 'transactions' does not exist in the database.",
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch transactions",
+      error: err.message,
     });
   }
 });
+
 
 // Approve deposit
 router.patch("/:id/approve", async (req, res) => {
