@@ -103,7 +103,7 @@ router.patch("/:id/approve", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 1️⃣ Lock deposit row ONLY
+    // 1️⃣ Lock deposit row
     const depositResult = await client.query(
       `SELECT * FROM deposits WHERE id = $1 FOR UPDATE`,
       [id]
@@ -121,7 +121,7 @@ router.patch("/:id/approve", async (req, res) => {
       return res.status(400).json({ error: "Deposit already approved" });
     }
 
-    // 2️⃣ Get promo data (NO LOCK needed)
+    // 2️⃣ Get promo (optional)
     let promo = null;
     if (deposit.promo_code) {
       const promoResult = await client.query(
@@ -137,13 +137,13 @@ router.patch("/:id/approve", async (req, res) => {
       [id]
     );
 
-    // 4️⃣ Add wallet balance
+    // 4️⃣ Update wallet
     await client.query(
       `UPDATE users SET wallet = wallet + $1 WHERE id = $2`,
       [deposit.amount, deposit.user_id]
     );
 
-    // 5️⃣ Handle turnover
+    // 5️⃣ Turnover logic
     if (promo && promo.turnover) {
       const turnoverAmount = deposit.amount * promo.turnover;
 
@@ -153,12 +153,26 @@ router.patch("/:id/approve", async (req, res) => {
       );
 
       await client.query(
-        `INSERT INTO user_turnover_history 
-         (user_id, promo_id, amount)
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount)
          VALUES ($1, $2, $3)`,
         [deposit.user_id, promo.id, turnoverAmount]
       );
     }
+
+    // 6️⃣ CREATE NOTIFICATION ✅
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        deposit.user_id,
+        "Deposit Approved",
+        `Your deposit of ৳${deposit.amount} has been approved successfully.`,
+        "success",
+      ]
+    );
 
     await client.query("COMMIT");
 
@@ -174,6 +188,7 @@ router.patch("/:id/approve", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
