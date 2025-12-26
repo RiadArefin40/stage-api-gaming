@@ -32,19 +32,36 @@ router.post("/", async (req, res) => {
  * USER → Get own notifications
  */
 router.get("/user/:userId", async (req, res) => {
+  const { userId } = req.params;
+
   try {
-    const result = await pool.query(
+    // Get notifications
+    const notificationsResult = await pool.query(
       `
       SELECT *
       FROM notifications
       WHERE user_id = $1
-      AND is_active = true
+        AND is_active = true
       ORDER BY created_at DESC
       `,
-      [req.params.userId]
+      [userId]
     );
 
-    res.json(result.rows);
+    // Get unread count
+    const unreadResult = await pool.query(
+      `
+      SELECT COUNT(*) 
+      FROM notifications 
+      WHERE user_id = $1 AND is_read = false
+      `,
+      [userId]
+    );
+
+    res.json({
+      unread_count: Number(unreadResult.rows[0].count),
+      notifications: notificationsResult.rows,
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
