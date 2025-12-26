@@ -8,6 +8,7 @@ import depositRoutes from "./routes/deposit.routes.js";
 import promoRoutes from "./routes/promos.routes.js"
 import widthdrawRoutes from "./routes/widthdraw.routes.js"
 import paymentGateway from "./routes/paymentGateway.routes.js"
+import notificationRoutes from "./routes/notifications.routes.js";
 import crypto from "crypto";
 import { pool } from "./db.js";
 // import gameRoutes from "./routes/game.routes.js"
@@ -49,7 +50,7 @@ app.use("/users", userRoutes);
 app.use("/deposit", depositRoutes);
 app.use("/promos", promoRoutes);
 app.use("/payment-gateways", paymentGateway);
-
+app.use("/api/notifications", notificationRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
