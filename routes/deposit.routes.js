@@ -106,8 +106,8 @@ router.get("/:userId", async (req, res) => {
   try {
     // Make sure your table is called "transactions" and exists in the DB
     const result = await pool.query(
-      `SELECT id, type, amount, status, created_at
-       FROM transactions
+      `SELECT *
+       FROM deposits
        WHERE user_id = $1
        ORDER BY created_at DESC`,
       [userId]
