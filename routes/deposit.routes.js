@@ -95,6 +95,32 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/:userId", async (req, res) => {
+  const { userId } = req.params;
+  
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, type, amount, status, created_at
+       FROM transactions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transactions",
+    });
+  }
+});
+
 // Approve deposit
 router.patch("/:id/approve", async (req, res) => {
   const { id } = req.params;
@@ -191,35 +217,7 @@ router.patch("/:id/approve", async (req, res) => {
 
 
 
-router.get("/:userId", async (req, res) => {
-  const { userId } = req.params;
-  const limit = parseInt(req.query.limit) || 50;
-  const offset = parseInt(req.query.offset) || 0;
 
-  try {
-    const result = await pool.query(
-      `
-      SELECT id, type, amount, status, created_at
-      FROM transactions
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3
-      `,
-      [userId, limit, offset]
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch transactions",
-    });
-  }
-});
 
 
 // Reject deposit
