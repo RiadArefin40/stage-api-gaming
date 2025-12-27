@@ -224,5 +224,137 @@ router.patch("/:id/toggle-status", async (req, res) => {
 });
 
 
+// user phone numbers
+router.post("/phone", async (req, res) => {
+  const { user_id, phone } = req.body;
+
+  if (!user_id || !phone) {
+    return res.status(400).json({ error: "user_id and phone are required" });
+  }
+
+  try {
+    const userExists = await pool.query(
+      "SELECT phone FROM users WHERE id = $1",
+      [user_id]
+    );
+
+    if (!userExists.rowCount) {
+      return res.status(400).json({ error: "Invalid user" });
+    }
+
+    if (userExists.rows[0].phone === phone) {
+      return res.status(400).json({
+        error: "This phone is already your primary number",
+      });
+    }
+
+    const count = await pool.query(
+      "SELECT COUNT(*) FROM user_phone_numbers WHERE user_id = $1",
+      [user_id]
+    );
+
+    if (parseInt(count.rows[0].count) >= 3) {
+      return res.status(400).json({ error: "Maximum 3 phone numbers allowed" });
+    }
+
+    const exists = await pool.query(
+      `SELECT 1 FROM user_phone_numbers WHERE user_id = $1 AND phone = $2`,
+      [user_id, phone]
+    );
+
+    if (exists.rowCount) {
+      return res.status(400).json({ error: "Phone number already added" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO user_phone_numbers (user_id, phone)
+       VALUES ($1, $2)
+       RETURNING *`,
+      [user_id, phone]
+    );
+
+    res.json({
+      message: "Phone added. Please verify.",
+      phone: result.rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+//verify phone numbers
+router.post("/phone/verify", async (req, res) => {
+  const { user_id, phone } = req.body;
+
+  if (!user_id || !phone) {
+    return res.status(400).json({ error: "Missing data" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE user_phone_numbers
+       SET is_verified = true, verified_at = NOW()
+       WHERE user_id = $1 AND phone = $2
+       RETURNING *`,
+      [user_id, phone]
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: "Phone not found" });
+    }
+
+    res.json({
+      message: "Phone verified",
+      phone: result.rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+//delete if not verified
+router.delete("/phone", async (req, res) => {
+  const { user_id, phone } = req.body;
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM user_phone_numbers
+       WHERE user_id = $1 
+         AND phone = $2 
+         AND is_verified = false
+       RETURNING *`,
+      [user_id, phone]
+    );
+
+    if (!result.rowCount) {
+      return res.status(400).json({
+        error: "Cannot delete verified number or not found",
+      });
+    }
+
+    res.json({ message: "Phone removed" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// get all number
+
+router.get("/phones/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+
+  const result = await pool.query(
+    `SELECT * FROM user_phone_numbers
+     WHERE user_id = $1
+     ORDER BY is_verified DESC, created_at ASC`,
+    [user_id]
+  );
+
+  res.json(result.rows);
+});
+
+
+
 
 export default router;
