@@ -317,27 +317,40 @@ router.post("/phone/verify", async (req, res) => {
 router.delete("/phone", async (req, res) => {
   const { user_id, phone } = req.body;
 
-  try {
-    const result = await pool.query(
-      `DELETE FROM user_phone_numbers
-       WHERE user_id = $1 
-         AND phone = $2 
-         AND is_verified = false
-       RETURNING *`,
-      [user_id, phone]
-    );
+  if (!user_id || !phone)
+    return res.status(400).json({ error: "Missing user_id or phone" });
 
-    if (!result.rowCount) {
+  const phoneTrimmed = phone.trim();
+
+  try {
+    // Debug: check row exists
+    const check = await pool.query(
+      `SELECT * FROM user_phone_numbers
+       WHERE user_id=$1 AND phone=$2 AND is_verified=false`,
+      [user_id, phoneTrimmed]
+    );
+    console.log("Rows to delete:", check.rows);
+
+    if (!check.rowCount) {
       return res.status(400).json({
         error: "Cannot delete verified number or not found",
       });
     }
 
-    res.json({ message: "Phone removed" });
+    // Delete
+    const result = await pool.query(
+      `DELETE FROM user_phone_numbers
+       WHERE user_id=$1 AND phone=$2 AND is_verified=false
+       RETURNING *`,
+      [user_id, phoneTrimmed]
+    );
+
+    res.json({ message: "Phone removed", phone: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // get all number
 
