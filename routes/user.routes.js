@@ -320,10 +320,10 @@ router.delete("/phone", async (req, res) => {
   if (!user_id || !phone)
     return res.status(400).json({ error: "Missing user_id or phone" });
 
-  const uid = parseInt(user_id , 10);
+  const uid = parseInt(user_id, 10);
   if (isNaN(uid)) return res.status(400).json({ error: "Invalid user_id" });
 
-  const phoneTrimmed = (phone ).trim();
+  const phoneTrimmed = phone.trim();
 
   try {
     const result = await pool.query(
@@ -341,9 +341,11 @@ router.delete("/phone", async (req, res) => {
 
     res.json({ message: "Phone removed", phone: result.rows[0] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete user" });
   }
 });
+
 
 
 
