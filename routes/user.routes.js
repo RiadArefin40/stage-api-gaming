@@ -320,36 +320,31 @@ router.delete("/phone", async (req, res) => {
   if (!user_id || !phone)
     return res.status(400).json({ error: "Missing user_id or phone" });
 
-  const phoneTrimmed = phone.trim();
+  const uid = parseInt(user_id , 10);
+  if (isNaN(uid)) return res.status(400).json({ error: "Invalid user_id" });
+
+  const phoneTrimmed = (phone ).trim();
 
   try {
-    // Debug: check row exists
-    const check = await pool.query(
-      `SELECT * FROM user_phone_numbers
-       WHERE user_id=$1 AND phone=$2 AND is_verified=false`,
-      [user_id, phoneTrimmed]
-    );
-    console.log("Rows to delete:", check.rows);
-
-    if (!check.rowCount) {
-      return res.status(400).json({
-        error: "Cannot delete verified number or not found",
-      });
-    }
-
-    // Delete
     const result = await pool.query(
       `DELETE FROM user_phone_numbers
        WHERE user_id=$1 AND phone=$2 AND is_verified=false
        RETURNING *`,
-      [user_id, phoneTrimmed]
+      [uid, phoneTrimmed]
     );
+
+    if (!result.rowCount) {
+      return res.status(400).json({
+        error: "Cannot delete verified number or not found",
+      });
+    }
 
     res.json({ message: "Phone removed", phone: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // get all number
