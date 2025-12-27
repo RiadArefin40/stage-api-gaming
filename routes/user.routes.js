@@ -315,17 +315,36 @@ router.post("/phone/verify", async (req, res) => {
 
 //delete if not verified
 router.delete("/phone", async (req, res) => {
-  const { user_id, phone } = req.body;
-
-  if (!user_id || !phone)
-    return res.status(400).json({ error: "Missing user_id or phone" });
-
-  const uid = parseInt(user_id, 10);
-  if (isNaN(uid)) return res.status(400).json({ error: "Invalid user_id" });
-
-  const phoneTrimmed = phone.trim();
-
   try {
+    if (!req.body) return res.status(400).json({ error: "Missing request body" });
+
+    const { user_id, phone } = req.body;
+
+    if (user_id === undefined || phone === undefined) {
+      return res.status(400).json({ error: "Missing user_id or phone" });
+    }
+
+    // Parse user_id as integer
+    const uid = parseInt(user_id, 10);
+    if (isNaN(uid)) return res.status(400).json({ error: "Invalid user_id" });
+
+    // Trim phone
+    const phoneTrimmed = String(phone).trim();
+
+    // Check if phone exists and is unverified
+    const check = await pool.query(
+      `SELECT * FROM user_phone_numbers
+       WHERE user_id=$1 AND phone=$2 AND is_verified=false`,
+      [uid, phoneTrimmed]
+    );
+
+    if (!check.rowCount) {
+      return res.status(400).json({
+        error: "Cannot delete verified number or phone not found",
+      });
+    }
+
+    // Delete the phone
     const result = await pool.query(
       `DELETE FROM user_phone_numbers
        WHERE user_id=$1 AND phone=$2 AND is_verified=false
@@ -333,16 +352,10 @@ router.delete("/phone", async (req, res) => {
       [uid, phoneTrimmed]
     );
 
-    if (!result.rowCount) {
-      return res.status(400).json({
-        error: "Cannot delete verified number or not found",
-      });
-    }
-
     res.json({ message: "Phone removed", phone: result.rows[0] });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete user" });
+    res.status(500).json({ error: "Failed to delete phone", details: err.message });
   }
 });
 
