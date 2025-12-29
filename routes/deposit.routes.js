@@ -243,11 +243,8 @@ router.get("/turnover/:user_id", async (req, res) => {
       "SELECT * FROM user_turnover_history WHERE user_id = $1 ORDER BY created_at DESC",
       [user_id]
     );
-    const all =  await pool.query(
-      "SELECT * FROM user_turnover_history ORDER BY created_at DESC",
-      [user_id]
-    );
-console.log('ass', all)
+
+
     if (!result.rows.length) {
       return res.status(404).json({ error: "No turnover history found for this user" });
     }
