@@ -39,11 +39,15 @@ router.post("/", async (req, res) => {
       SELECT id
       FROM user_turnover_history
       WHERE user_id = $1
-        AND (active_turnover_amount > 0 OR complete = false)
+        AND (
+          CAST(active_turnover_amount AS NUMERIC) > 0
+          OR complete = false
+        )
       LIMIT 1
       `,
       [user_id]
     );
+
 
     if (turnoverCheck.rows.length > 0) {
       return res.status(400).json({
