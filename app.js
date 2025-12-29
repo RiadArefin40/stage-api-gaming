@@ -112,12 +112,50 @@ app.post("/result", async (req, res) => {
 
 
       try {
-    const result = await pool.query(
-      "SELECT * FROM user_turnover_history WHERE user_id = $1 ORDER BY created_at DESC",
-      [user.id]
+// Get all user turnover history for this user, latest first
+const turnoverResult = await pool.query(
+  `SELECT * 
+   FROM user_turnover_history 
+   WHERE user_id = $1 AND complete = false 
+   ORDER BY created_at DESC`,
+  [user.id]
+);
+
+for (const record of turnoverResult.rows) {
+  if (record.type === type && record.amount > 0) {
+    // Decrease the amount by some value (example: session.amount or any calculation)
+    let decrement = bet_amount; // replace with your logic
+    let newAmount = parseInt(record.amount) - decrement;
+    if (newAmount <= 0) {
+      newAmount = 0;
+    }
+
+    // Update user_turnover_history
+    await pool.query(
+      `UPDATE user_turnover_history
+       SET amount = $1,
+           complete = $2
+       WHERE id = $3`,
+      [newAmount, newAmount === 0, record.id]
     );
 
-   console.log('turovercount', result.rows )
+    // Update user's wallet (increase by decrement)
+    // const newWallet = user.wallet + decrement;
+    // await client.query(
+    //   "UPDATE users SET wallet = $1 WHERE id = $2",
+    //   [newWallet, user.id]
+    // );
+
+    console.log(
+      `Updated turnover record ${record.id}: amount=${newAmount}, complete=${newAmount === 0}`
+    );
+
+    // Stop after updating the first matching record
+    break;
+  }
+}
+
+console.log("Realtime user event:", timestamp);
 
 
   } catch (err) {
