@@ -74,7 +74,7 @@ router.patch("/:id/approve", async (req, res) => {
     const w = withdrawal.rows[0];
 
     // Deduct from user wallet
-    await pool.query("UPDATE users SET wallet = wallet - $1 WHERE id=$2", [w.amount, w.user_id]);
+    // await pool.query("UPDATE users SET wallet = wallet - $1 WHERE id=$2", [w.amount, w.user_id]);
 
     // Update withdrawal status
     await pool.query("UPDATE withdrawals SET status='approved' WHERE id=$1", [id]);
@@ -108,17 +108,48 @@ router.patch("/:id/reject", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const withdrawal = await pool.query("SELECT * FROM withdrawals WHERE id=$1", [id]);
-    if (!withdrawal.rows.length) return res.status(404).json({ error: "Withdrawal not found" });
+    // Get withdrawal info
+    const withdrawalResult = await pool.query(
+      "SELECT * FROM withdrawals WHERE id = $1",
+      [id]
+    );
+
+    if (!withdrawalResult.rows.length) {
+      return res.status(404).json({ error: "Withdrawal not found" });
+    }
+
+    const withdrawal = withdrawalResult.rows[0];
+
+    // Prevent double rejection
+    if (withdrawal.status === "rejected") {
+      return res.status(400).json({ error: "Withdrawal already rejected" });
+    }
+
+    // Refund amount to user wallet
+    await pool.query(
+      "UPDATE users SET wallet = wallet + $1 WHERE id = $2",
+      [withdrawal.amount, withdrawal.user_id]
+    );
 
     // Update withdrawal status
-    await pool.query("UPDATE withdrawals SET status='rejected' WHERE id=$1", [id]);
+    await pool.query(
+      "UPDATE withdrawals SET status = 'rejected' WHERE id = $1",
+      [id]
+    );
 
-    res.json({ message: "Withdrawal rejected", withdrawal: { ...withdrawal.rows[0], status: "rejected" } });
+    res.json({
+      message: "Withdrawal rejected and amount refunded",
+      withdrawal: {
+        ...withdrawal,
+        status: "rejected",
+      },
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // Get all withdrawals (for admin)
 router.get("/", async (_, res) => {
