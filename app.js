@@ -89,7 +89,7 @@ app.post("/result", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-   
+    
 
     // Optional safety check: make sure wallet_before matches current DB value
     // if (Number(user.wallet) !== Number(wallet_before)) {
@@ -108,7 +108,7 @@ app.post("/result", async (req, res) => {
     );
 
 
-    console.log("User before update:", user);
+    console.log("Realtime user event:", timestamp);
 
 
         const sessionResult = await client.query(
@@ -121,7 +121,7 @@ app.post("/result", async (req, res) => {
       );
 
       const session = sessionResult.rows[0];
-      console.log('okk', session.game_type)
+ 
    
     let newTurnover = user.turnover;
 
@@ -147,7 +147,7 @@ app.post("/result", async (req, res) => {
 
 
     await client.query("COMMIT");
-    console.log("User wallet updated:", newWallet);
+
 
 
 
@@ -245,9 +245,9 @@ app.post("/launch_game", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    console.log('eser',user )
+    console.log('realtime user log',user )
    if(game_type){
- console.log('eser',user )
+
         await client.query(
       `INSERT INTO active_game_sessions (user_id, game_type)
        VALUES ($1, $2)`,
@@ -284,7 +284,7 @@ app.post("/launch_game", async (req, res) => {
 
   // Match PHP: json_encode($requestData, JSON_UNESCAPED_SLASHES)
   const message = JSON.stringify(requestData);
-  console.log("📝 Plain JSON message:", message);
+  console.log("📝 encrypted request", message);
   console.log("🔑 Key length:", AES_KEY.length, "characters");
   console.log("🔑 Key bytes:", Buffer.from(AES_KEY, 'utf8').length, "bytes");
   
@@ -303,7 +303,6 @@ app.post("/launch_game", async (req, res) => {
       console.log("✅ Encryption/Decryption cycle verified!");
     } else {
       console.log("⚠️  WARNING: Decrypted text doesn't match original!");
-      console.log("Original:", message);
       console.log("Decrypted:", decrypted);
     }
   } catch (e) {
@@ -319,7 +318,7 @@ app.post("/launch_game", async (req, res) => {
     `&timestamp=${encodeURIComponent(timestamp)}` +
     `&payload=${encodeURIComponent(encryptedPayload)}`;
 
-  console.log("🌐 Generated game URL:", gameUrl);
+  console.log("🌐 Generated realtime block generation URL:", gameUrl);
 
   try {
     // Call the casino API

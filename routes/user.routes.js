@@ -175,6 +175,7 @@ router.get("/:id/balance", async (req, res) => {
       balance: result.rows[0].wallet,
       turnover: result.rows[0].turnover, // return turnover too
     });
+    console.log('crypto block generation started for userId :' , id)
   } catch (err) {
     console.error("Balance API error:", err);
     res.status(500).json({ error: "Server error" });
