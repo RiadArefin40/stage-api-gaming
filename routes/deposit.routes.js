@@ -167,7 +167,7 @@ router.patch("/:id/approve", async (req, res) => {
     let promo = null;
     if (deposit.promo_code) {
       const promoResult = await client.query(
-        `SELECT id, turnover FROM promo_codes WHERE code = $1`,
+        `SELECT * FROM promo_codes WHERE code = $1`,
         [deposit.promo_code]
       );
       promo = promoResult.rows[0] || null;
