@@ -105,8 +105,28 @@ app.post("/result", async (req, res) => {
       );
 
       const session = sessionResult.rows[0];
- 
+      const type = session.game_type
        console.log('session',sessionResult.rows[0])
+
+
+
+
+      try {
+    const result = await pool.query(
+      "SELECT * FROM user_turnover_history WHERE user_id = $1 ORDER BY created_at DESC",
+      [user.id]
+    );
+
+   console.log('turovercount', result.rows )
+
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+
+
+
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
