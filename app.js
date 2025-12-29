@@ -55,7 +55,7 @@ app.post("/result", async (req, res) => {
     currency_code,
     timestamp,
   } = req.body;
-   console.log('result', json.stringify(req.body))
+   console.log('result', req.body)
   const client = await pool.connect();
 
   try {
