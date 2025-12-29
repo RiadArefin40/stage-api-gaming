@@ -119,10 +119,10 @@ app.post("/result", async (req, res) => {
 
    console.log('turovercount', result.rows )
 
-    res.json({ data: result.rows });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+ 
   }
 
 
