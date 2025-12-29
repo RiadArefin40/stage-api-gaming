@@ -5,32 +5,63 @@ const router = express.Router();
 
 // User submits a withdrawal request
 router.post("/", async (req, res) => {
-  const { user_id, amount } = req.body;
+  const {
+    user_id,
+    amount,
+    sender_number,
+    receiver_number,
+    payment_gateway,
+  } = req.body;
 
-  if (!user_id || !amount) {
-    return res.status(400).json({ error: "Missing fields" });
+  if (!user_id || !amount || !payment_gateway) {
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    // Check if user has enough balance
-    const user = await pool.query("SELECT wallet FROM users WHERE id=$1", [user_id]);
-    if (!user.rows.length) return res.status(404).json({ error: "User not found" });
+    // Check user wallet
+    const userResult = await pool.query(
+      "SELECT wallet FROM users WHERE id=$1",
+      [user_id]
+    );
 
-    if (parseFloat(user.rows[0].wallet) < parseFloat(amount)) {
+    if (!userResult.rows.length) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const wallet = parseFloat(userResult.rows[0].wallet);
+    const withdrawAmount = parseFloat(amount);
+
+    if (wallet < withdrawAmount) {
       return res.status(400).json({ error: "Insufficient wallet balance" });
     }
 
     // Insert withdrawal request
     const result = await pool.query(
-      `INSERT INTO withdrawals (user_id, amount) VALUES ($1, $2) RETURNING *`,
-      [user_id, amount]
+      `
+      INSERT INTO withdrawals 
+      (user_id, amount, sender_number, receiver_number, payment_gateway)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+      `,
+      [user_id, withdrawAmount, sender_number, receiver_number, payment_gateway]
     );
 
-    res.json({ message: "Withdrawal request submitted", withdrawal: result.rows[0] });
+    // Deduct wallet balance
+    await pool.query(
+      "UPDATE users SET wallet = wallet - $1 WHERE id = $2",
+      [withdrawAmount, user_id]
+    );
+
+    res.json({
+      message: "Withdrawal request submitted successfully",
+      withdrawal: result.rows[0],
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // Admin: Approve withdrawal
 router.patch("/:id/approve", async (req, res) => {
