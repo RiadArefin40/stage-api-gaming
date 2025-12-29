@@ -221,7 +221,7 @@ app.post("/launch_game", async (req, res) => {
    const client = await pool.connect();
   const { userName, game_uid, credit_amount, game_type} = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
-   console.log('userid',userName )
+   console.log('Start Process for encryption -decryption',userName )
   if (!userName || !game_uid || !credit_amount) {
     return res.status(400).json({ 
       success: false, 
@@ -296,7 +296,7 @@ app.post("/launch_game", async (req, res) => {
     const decrypted = decrypt(encryptedPayload);
     console.log("✅ Self-decryption test - Decrypted:", decrypted);
     const parsed = JSON.parse(decrypted);
-    console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
+    // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
     
     // Verify it matches original
     if (decrypted === message) {
