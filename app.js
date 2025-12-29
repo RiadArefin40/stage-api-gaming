@@ -1,7 +1,7 @@
 import express from "express";
 import axios from "axios";
 import cors from "cors";
-import bodyParser from "body-parser";
+import bodyParser, { json } from "body-parser";
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import depositRoutes from "./routes/deposit.routes.js";
@@ -55,7 +55,7 @@ app.post("/result", async (req, res) => {
     currency_code,
     timestamp,
   } = req.body;
-
+   console.log('result', json.stringify(req.body))
   const client = await pool.connect();
 
   try {
