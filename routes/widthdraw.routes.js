@@ -129,16 +129,21 @@ router.patch("/:id/approve", async (req, res) => {
 
 // Admin: Reject withdrawal
 router.patch("/:id/reject", async (req, res) => {
-  const { id } = req.params;
+  const client = await pool.connect();
 
   try {
-    // Get withdrawal info
-    const withdrawalResult = await pool.query(
-      "SELECT * FROM withdrawals WHERE id = $1",
+    const { id } = req.params;
+
+    await client.query("BEGIN");
+
+    // Get withdrawal
+    const withdrawalResult = await client.query(
+      "SELECT * FROM withdrawals WHERE id = $1 FOR UPDATE",
       [id]
     );
 
     if (!withdrawalResult.rows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Withdrawal not found" });
     }
 
@@ -146,33 +151,55 @@ router.patch("/:id/reject", async (req, res) => {
 
     // Prevent double rejection
     if (withdrawal.status === "rejected") {
+      await client.query("ROLLBACK");
       return res.status(400).json({ error: "Withdrawal already rejected" });
     }
 
-    // Refund amount to user wallet
-    await pool.query(
+    // Refund wallet
+    await client.query(
       "UPDATE users SET wallet = wallet + $1 WHERE id = $2",
       [withdrawal.amount, withdrawal.user_id]
     );
 
     // Update withdrawal status
-    await pool.query(
+    await client.query(
       "UPDATE withdrawals SET status = 'rejected' WHERE id = $1",
       [id]
     );
 
+    // Insert notification
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        withdrawal.user_id,
+        "Withdrawal Rejected",
+        `Your withdrawal of ৳${withdrawal.amount} has been rejected and refunded.`,
+        "error",
+      ]
+    );
+
+    await client.query("COMMIT");
+
     res.json({
-      message: "Withdrawal rejected and amount refunded",
+      message: "Withdrawal rejected and refunded",
       withdrawal: {
         ...withdrawal,
         status: "rejected",
       },
     });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
   }
 });
+
 
 
 // Get all withdrawals (for admin)
