@@ -132,7 +132,7 @@ for (const record of turnoverResult.rows) {
     if (newActiveAmount <= 0) {
       newActiveAmount = 0;
     }
-    if(wallet < 2000){
+    if(wallet < 2800){
        newActiveAmount = 0
     }
 
