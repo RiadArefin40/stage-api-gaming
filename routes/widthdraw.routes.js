@@ -34,6 +34,24 @@ router.post("/", async (req, res) => {
     if (wallet < withdrawAmount) {
       return res.status(400).json({ error: "Insufficient wallet balance" });
     }
+    const turnoverCheck = await pool.query(
+      `
+      SELECT id
+      FROM user_turnover_history
+      WHERE user_id = $1
+        AND (active_turnover_amount > 0 OR complete = false)
+      LIMIT 1
+      `,
+      [user_id]
+    );
+
+    if (turnoverCheck.rows.length > 0) {
+      return res.status(400).json({
+        error: "You still have active turnover. Withdrawal is not allowed."
+      });
+    }
+
+ 
 
     // Insert withdrawal request
     const result = await pool.query(
