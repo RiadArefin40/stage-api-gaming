@@ -123,7 +123,7 @@ const turnoverResult = await pool.query(
 
 
 for (const record of turnoverResult.rows) {
-  if (record.type === type && parseInt(record.active_turnover_amount)  > 0) {
+  if ((record.type === type || record.type === "default") && parseInt(record.active_turnover_amount)  > 0) {
     console.log('devug')
     // Decrease the active_turnover_amount by bet_amount
     const decrement = bet_amount; // your bet or calculation
