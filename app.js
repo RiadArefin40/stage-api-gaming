@@ -294,7 +294,7 @@ app.post("/launch_game", async (req, res) => {
   // Self-test: verify we can decrypt our own encryption
   try {
     const decrypted = decrypt(encryptedPayload);
-    console.log("✅ Self-decryption test - Decrypted:", decrypted);
+    console.log("✅ Self-decryption test - Decrypted:");
     const parsed = JSON.parse(decrypted);
     // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
     
