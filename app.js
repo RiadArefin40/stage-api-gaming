@@ -123,7 +123,7 @@ const turnoverResult = await pool.query(
 console.log('devug',turnoverResult)
 
 for (const record of turnoverResult.rows) {
-  if (record.type == type && record.amount > 0) {
+  if (record.type === type && record.amount > 0) {
     // Decrease the amount by some value (example: session.amount or any calculation)
     let decrement = bet_amount; // replace with your logic
     let newAmount = parseInt(record.amount) - decrement;

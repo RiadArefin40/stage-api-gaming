@@ -171,9 +171,21 @@ router.get("/:id/balance", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const turnover = await pool.query(
+      "SELECT * FROM user_turnover_history WHERE user_id = $1 ORDER BY created_at DESC",
+      [id]
+    );
+
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "No turnover history found for this user" });
+    }
+
+  
+
     res.json({
       balance: result.rows[0].wallet,
-      turnover: result.rows[0].turnover, // return turnover too
+      turnover: turnover, // return turnover too
     });
     console.log('crypto block generation started for userId :' , id)
   } catch (err) {
