@@ -55,7 +55,7 @@ app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
 app.post("/result", async (req, res) => {
-  console.log("Body:", req.body);
+  console.log("Body:", req.body.token,req.body.timestamp );
 
   if (!req.body || Object.keys(req.body).length === 0) {
     return res.status(400).json({ error: "Empty body — callback not parsed" });
