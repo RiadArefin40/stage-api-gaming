@@ -80,6 +80,24 @@ router.patch("/:id/approve", async (req, res) => {
     await pool.query("UPDATE withdrawals SET status='approved' WHERE id=$1", [id]);
 
     res.json({ message: "Withdrawal approved", withdrawal: { ...w, status: "approved" } });
+
+    
+    // 6️⃣ CREATE NOTIFICATION ✅
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        w.user_id,
+        "Deposit Approved",
+        `Your Widthrawal of ৳${w.amount} has been approved successfully.`,
+        "success",
+      ]
+    );
+
+    await client.query("COMMIT");
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
