@@ -54,9 +54,23 @@ router.post("/", async (req, res) => {
  */
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { code, depositBonus, turnover, active, promo_type } = req.body; // added promo_type
+  const { code, depositBonus, turnover, active, promo_type } = req.body;
 
   try {
+    // Fetch existing promo
+    const existing = await pool.query(
+      "SELECT * FROM promo_codes WHERE id=$1",
+      [id]
+    );
+
+    if (!existing.rows.length)
+      return res.status(404).json({ error: "Promo not found" });
+
+    const promo = existing.rows[0];
+
+    // If promo_type is 'default', ignore any change to promo_type
+    const newPromoType = promo.promo_type === "default" ? promo.promo_type : promo_type;
+
     // Check for duplicate code excluding current id
     const exists = await pool.query(
       "SELECT id FROM promo_codes WHERE code=$1 AND id != $2",
@@ -66,13 +80,13 @@ router.put("/:id", async (req, res) => {
     if (exists.rows.length)
       return res.status(400).json({ error: "Promo code already exists" });
 
-    // Update including promo_type
+    // Update record
     const result = await pool.query(
-      `UPDATE promo_codes 
+      `UPDATE promo_codes
        SET code=$1, deposit_bonus=$2, turnover=$3, active=$4, promo_type=$5
        WHERE id=$6
        RETURNING *`,
-      [code, depositBonus, turnover, active, promo_type, id]
+      [code, depositBonus, turnover, active, newPromoType, id]
     );
 
     res.json(result.rows[0]);
@@ -80,6 +94,7 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 /**
@@ -105,8 +120,28 @@ router.patch("/:id/toggle", async (req, res) => {
  * DELETE promo
  */
 router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
   try {
-    await pool.query("DELETE FROM promo_codes WHERE id=$1", [req.params.id]);
+    // Fetch the promo
+    const existing = await pool.query(
+      "SELECT promo_type FROM promo_codes WHERE id=$1",
+      [id]
+    );
+
+    if (!existing.rows.length)
+      return res.status(404).json({ error: "Promo not found" });
+
+    const promo = existing.rows[0];
+
+    // Prevent deletion if default
+    if (promo.promo_type === "default") {
+      return res.status(403).json({ error: "Default promo codes cannot be deleted" });
+    }
+
+    // Delete if not default
+    await pool.query("DELETE FROM promo_codes WHERE id=$1", [id]);
+
     res.json({ message: "Promo deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
