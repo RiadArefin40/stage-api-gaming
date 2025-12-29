@@ -123,38 +123,40 @@ const turnoverResult = await pool.query(
 console.log('devug',turnoverResult)
 
 for (const record of turnoverResult.rows) {
-  if (record.type === type && record.amount > 0) {
-    // Decrease the amount by some value (example: session.amount or any calculation)
-    let decrement = bet_amount; // replace with your logic
-    let newAmount = parseInt(record.amount) - decrement;
-    if (newAmount <= 0) {
-      newAmount = 0;
+  if (record.type === type && record.active_turnover_amount > 0) {
+    // Decrease the active_turnover_amount by bet_amount
+    const decrement = bet_amount; // your bet or calculation
+    let newActiveAmount = parseFloat(record.active_turnover_amount) - decrement;
+
+    if (newActiveAmount <= 0) {
+      newActiveAmount = 0;
     }
 
     // Update user_turnover_history
     await pool.query(
       `UPDATE user_turnover_history
-       SET amount = $1,
+       SET active_turnover_amount = $1,
            complete = $2
        WHERE id = $3`,
-      [newAmount, newAmount === 0, record.id]
+      [newActiveAmount, newActiveAmount === 0, record.id]
     );
 
-    // Update user's wallet (increase by decrement)
+    console.log(
+      `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+    );
+
+    // Optional: update user's wallet if needed
     // const newWallet = user.wallet + decrement;
     // await client.query(
     //   "UPDATE users SET wallet = $1 WHERE id = $2",
     //   [newWallet, user.id]
     // );
 
-    console.log(
-      `Updated turnover record ${record.id}: amount=${newAmount}, complete=${newAmount === 0}`
-    );
-
-    // Stop after updating the first matching record
+    // Stop after updating the first applicable record
     break;
   }
 }
+
 
 console.log("Realtime user event:", timestamp);
 
