@@ -193,7 +193,7 @@ router.patch("/:id/approve", async (req, res) => {
         `UPDATE users SET turnover = turnover + $1 WHERE id = $2`,
         [turnoverAmount, deposit.user_id]
       );
-      console.log('promo')
+      console.log('promo', promo)
       await client.query(
         `INSERT INTO user_turnover_history (user_id, promo_id, amount,type)
          VALUES ($1, $2, $3, $4)`,
