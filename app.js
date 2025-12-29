@@ -106,7 +106,7 @@ app.post("/result", async (req, res) => {
 
       const session = sessionResult.rows[0];
  
-       console.log('session',sessionResult)
+       console.log('session',sessionResult.rows[0])
     let newTurnover = user.turnover;
 
     if (user.turnover > 0 && bet_amount > 0) {
