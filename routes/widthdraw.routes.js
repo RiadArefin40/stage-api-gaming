@@ -65,24 +65,37 @@ router.post("/", async (req, res) => {
 
 // Admin: Approve withdrawal
 router.patch("/:id/approve", async (req, res) => {
-  const { id } = req.params;
+  const client = await pool.connect();
 
   try {
-    const withdrawal = await pool.query("SELECT * FROM withdrawals WHERE id=$1", [id]);
-    if (!withdrawal.rows.length) return res.status(404).json({ error: "Withdrawal not found" });
+    const { id } = req.params;
 
-    const w = withdrawal.rows[0];
+    await client.query("BEGIN");
 
-    // Deduct from user wallet
-    // await pool.query("UPDATE users SET wallet = wallet - $1 WHERE id=$2", [w.amount, w.user_id]);
+    const withdrawalRes = await client.query(
+      "SELECT * FROM withdrawals WHERE id = $1 FOR UPDATE",
+      [id]
+    );
 
-    // Update withdrawal status
-    await pool.query("UPDATE withdrawals SET status='approved' WHERE id=$1", [id]);
+    if (!withdrawalRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Withdrawal not found" });
+    }
 
-    res.json({ message: "Withdrawal approved", withdrawal: { ...w, status: "approved" } });
+    const w = withdrawalRes.rows[0];
 
-    
-    // 6️⃣ CREATE NOTIFICATION ✅
+    if (w.status === "approved") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Already approved" });
+    }
+
+    // Update withdrawal
+    await client.query(
+      "UPDATE withdrawals SET status = 'approved' WHERE id = $1",
+      [id]
+    );
+
+    // Create notification
     await client.query(
       `
       INSERT INTO notifications
@@ -91,17 +104,28 @@ router.patch("/:id/approve", async (req, res) => {
       `,
       [
         w.user_id,
-        "Deposit Approved",
-        `Your Widthrawal of ৳${w.amount} has been approved successfully.`,
+        "Withdrawal Approved",
+        `Your withdrawal of ৳${w.amount} has been approved successfully.`,
         "success",
       ]
     );
 
     await client.query("COMMIT");
+
+    res.json({
+      message: "Withdrawal approved successfully",
+      withdrawal: { ...w, status: "approved" },
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
   }
 });
+
 
 // Admin: Reject withdrawal
 router.patch("/:id/reject", async (req, res) => {
