@@ -195,9 +195,9 @@ router.patch("/:id/approve", async (req, res) => {
       );
       console.log('promo', promo)
       await client.query(
-        `INSERT INTO user_turnover_history (user_id, promo_id, amount,type)
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount,type, code)
          VALUES ($1, $2, $3, $4)`,
-        [deposit.user_id, promo.id, turnoverAmount,promo.promo_type]
+        [deposit.user_id, promo.id, turnoverAmount,promo.promo_type, promo.code]
       );
     }
 
