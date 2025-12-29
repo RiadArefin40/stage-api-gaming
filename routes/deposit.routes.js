@@ -235,7 +235,7 @@ router.patch("/:id/approve", async (req, res) => {
 
 // get users turover
 // Get turnover history for a specific user
-router.get("/turnover/:id", async (req, res) => {
+router.get("/turnover/:user_id", async (req, res) => {
   const { user_id } = req.params;
   console.log('id', user_id)
   try {
