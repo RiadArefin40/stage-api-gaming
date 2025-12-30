@@ -238,7 +238,7 @@ app.use("/withdrawals", widthdrawRoutes);
 //   }
 // });
 app.post("/result", async (req, res) => {
-  const { mobile, bet_amount, wallet_after, timestamp } = req.body;
+  const { mobile, bet_amount, wallet_after, timestamp,wallet_before } = req.body;
 
   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
 
