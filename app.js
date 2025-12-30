@@ -289,33 +289,36 @@ app.post("/result", async (req, res) => {
     // );
     //   }
     // }));
+try{
+  const record = turnoverResult.rows.find(
+  r => parseFloat(r.active_turnover_amount) > 0
+);
 
-    for (const record of turnoverResult.rows) {
-  if (parseFloat(record.active_turnover_amount) > 0) {
+if (record) {
+  let newActiveAmount =
+    Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
 
-    let newActiveAmount =
-      Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
-
-    if (newActiveAmount <= 0) {
-      newActiveAmount = 0;
-    }
-
-    if (wallet_before < 20) {
-      newActiveAmount = 0;
-    }
-
-    await client.query(
-      `UPDATE user_turnover_history 
-       SET active_turnover_amount = $1, complete = $2 
-       WHERE id = $3`,
-      [newActiveAmount, newActiveAmount == 0, record.id]
-    );
-
-    console.log(
-      `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-    );
+  if (wallet_before < 20) {
+    newActiveAmount = 0;
   }
+
+  await client.query(
+    `UPDATE user_turnover_history 
+     SET active_turnover_amount = $1, complete = $2 
+     WHERE id = $3`,
+    [newActiveAmount, newActiveAmount === 0, record.id]
+  );
+
+  console.log(
+    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+  );
 }
+
+}
+catch (e){
+ console.log(e)
+}
+
 
 
 
