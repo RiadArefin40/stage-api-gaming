@@ -415,14 +415,12 @@ app.post("/result", async (req, res) => {
     // Batch update turnover history in one query
     // Set active_turnover_amount = 0 if wallet_before < 20
     await client.query(
-      `
-UPDATE user_turnover_history
-SET active_turnover_amount = GREATEST(ROUND(active_turnover_amount - $1), 0),
-    complete = CASE WHEN GREATEST(ROUND(active_turnover_amount - $1), 0) = 0 OR $2 < 20 THEN true ELSE complete END
-WHERE user_id = $3 AND complete = false
+  `UPDATE user_turnover_history
+   SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
+       complete = CASE WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 THEN true ELSE complete END
+   WHERE user_id = $3 AND complete = false`,
+  [parseFloat(bet_amount), parseFloat(wallet_before), user.id]
 
-      `,
-      [bet_amount, wallet_before, user.id]
     );
 
     // Reduce user's turnover if applicable
