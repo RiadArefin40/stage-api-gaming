@@ -26,7 +26,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(timeout('15s'));
+app.use(timeout('35s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.json());
@@ -403,7 +403,7 @@ app.post("/launch_game", async (req, res) => {
    const client = await pool.connect();
   const { userName, game_uid, credit_amount, game_type} = req.body;
   const SERVER_URL = "https://bulkapi.in"; 
-   console.log('Start Process for encryption -decryption',userName )
+   console.log('1.Start Process for encryption -decryption',userName )
   if (!userName || !game_uid || !credit_amount) {
     return res.status(400).json({ 
       success: false, 
@@ -419,6 +419,8 @@ app.post("/launch_game", async (req, res) => {
       [userName]
     );
 
+    
+
     if (!userResult.rows.length) {
       return res.status(404).json({
         success: false,
@@ -427,7 +429,7 @@ app.post("/launch_game", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    console.log('realtime user log',user )
+console.log('2.Start Process for encryption -genarating user from db',userResult )
    if(game_type){
 
         await client.query(
@@ -466,30 +468,27 @@ app.post("/launch_game", async (req, res) => {
 
   // Match PHP: json_encode($requestData, JSON_UNESCAPED_SLASHES)
   const message = JSON.stringify(requestData);
-  console.log("📝 encrypted request", message);
-  console.log("🔑 Key length:", AES_KEY.length, "characters");
-  console.log("🔑 Key bytes:", Buffer.from(AES_KEY, 'utf8').length, "bytes");
+  console.log('3. Encryption Done ',message )
   
   const encryptedPayload = encrypt(message);
-  console.log("🔐 Encrypted payload:", encryptedPayload);
 
   // Self-test: verify we can decrypt our own encryption
-  try {
-    const decrypted = decrypt(encryptedPayload);
-    console.log("✅ Self-decryption test - Decrypted:");
-    const parsed = JSON.parse(decrypted);
-    // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
+  // try {
+  //   const decrypted = decrypt(encryptedPayload);
+  //   console.log("4.✅ Self-decryption test - Decrypted:");
+  //   const parsed = JSON.parse(decrypted);
+  //   // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
     
-    // Verify it matches original
-    if (decrypted === message) {
-      console.log("✅ Encryption/Decryption cycle verified!");
-    } else {
-      console.log("⚠️  WARNING: Decrypted text doesn't match original!");
-      console.log("Decrypted:", decrypted);
-    }
-  } catch (e) {
-    console.error("❌ Self-decryption test FAILED:", e.message);
-  }
+  //   // Verify it matches original
+  //   if (decrypted === message) {
+  //     console.log("✅ Encryption/Decryption cycle verified!");
+  //   } else {
+  //     console.log("⚠️  WARNING: Decrypted text doesn't match original!");
+  //     console.log("Decrypted:", decrypted);
+  //   }
+  // } catch (e) {
+  //   console.error("❌ Self-decryption test FAILED:", e.message);
+  // }
 
   // Build URL with parameters (exactly like PHP)
   const gameUrl = `${SERVER_URL}/launch_game?` + 
@@ -500,11 +499,11 @@ app.post("/launch_game", async (req, res) => {
     `&timestamp=${encodeURIComponent(timestamp)}` +
     `&payload=${encodeURIComponent(encryptedPayload)}`;
 
-  console.log("🌐 Generated realtime block generation URL:", gameUrl);
 
   try {
     // Call the casino API
  const response = await axios.get(gameUrl, { timeout: 10000 });
+
 
 
     // Return the casino API response to frontend
@@ -513,9 +512,9 @@ app.post("/launch_game", async (req, res) => {
       data: response.data,
       gameUrl: gameUrl
     });
+      console.log("🌐 Generated completed");
   } catch (error) {
     console.error("❌ API Error:", error.response?.data || error.message);
-    console.error("Status:", error.response?.status);
     res.status(error.response?.status || 500).json({
       success: false,
       message: "Failed to launch game",
