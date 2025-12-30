@@ -416,10 +416,11 @@ app.post("/result", async (req, res) => {
     // Set active_turnover_amount = 0 if wallet_before < 20
     await client.query(
       `
-      UPDATE user_turnover_history
-      SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
-          complete = CASE WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 THEN true ELSE complete END
-      WHERE user_id = $3 AND complete = false
+UPDATE user_turnover_history
+SET active_turnover_amount = GREATEST(ROUND(active_turnover_amount - $1), 0),
+    complete = CASE WHEN GREATEST(ROUND(active_turnover_amount - $1), 0) = 0 OR $2 < 20 THEN true ELSE complete END
+WHERE user_id = $3 AND complete = false
+
       `,
       [bet_amount, wallet_before, user.id]
     );
