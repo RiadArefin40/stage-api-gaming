@@ -282,7 +282,7 @@ app.post("/result", async (req, res) => {
           }
         await client.query(
           `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
-          [newActiveAmount, newActiveAmount === 0, record.id]
+          [newActiveAmount, newActiveAmount == 0, record.id]
         );
             console.log(
     `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
