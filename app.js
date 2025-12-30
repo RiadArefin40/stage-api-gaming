@@ -40,203 +40,9 @@ app.use("/notifications", notificationRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 
-// app.post("/result", async (req, res) => {
-//   console.log("Body:", req.body.token,req.body.timestamp );
-
-//   if (!req.body || Object.keys(req.body).length === 0) {
-//     return res.status(400).json({ error: "Empty body — callback not parsed" });
-//   }
-
-//   const {
-//     mobile,
-//     bet_amount,
-//     win_amount,
-//     wallet_before,
-//     wallet_after,
-//     change,
-//     currency_code,
-//     timestamp,
-//   } = req.body;
-//    console.log('result', req.body)
-//   const client = await pool.connect();
-
-//   try {
-//     await client.query("BEGIN");
-
-//     // Lock user row to prevent race conditions
-// const userResult = await client.query(
-//   "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
-//   [mobile]
-// );
-
-
-//     console.log('users',userResult.rows[0] )
-
-//     if (!userResult.rows.length) {
-//       await client.query("ROLLBACK");
-//       return res.status(404).json({ success: false, message: "User not found" });
-//     }
-
-//     const user = userResult.rows[0];
-    
-
-//     // Optional safety check: make sure wallet_before matches current DB value
-//     // if (Number(user.wallet) !== Number(wallet_before)) {
-//     //   await client.query("ROLLBACK");
-//     //   return res.status(400).json({
-//     //     success: false,
-//     //     message: "Wallet mismatch — possible data inconsistency",
-//     //   });
-//     // }
-
-//     // Update wallet
-//     const newWallet = wallet_after; // or user.wallet + change
-//     await client.query(
-//       "UPDATE users SET wallet = $1 WHERE id = $2",
-//       [newWallet, user.id]
-//     );
-
-
-//     console.log("Realtime user event:", timestamp);
-
-
-//         const sessionResult = await client.query(
-//         `SELECT game_type
-//         FROM active_game_sessions
-//         WHERE user_id=$1
-//         ORDER BY started_at DESC
-//         LIMIT 1`,
-//         [user.id]
-//       );
-
-//       const session = sessionResult.rows[0];
-//       const type = session.game_type
-//        console.log('session',sessionResult.rows[0])
 
 
 
-
-//       try {
-// // Get all user turnover history for this user, latest first
-// const turnoverResult = await client.query(
-//   `SELECT * 
-//    FROM user_turnover_history 
-//    WHERE user_id = $1 AND complete = false 
-//    ORDER BY created_at DESC`,
-//   [user.id]
-// );
-
-
-// // for (const record of turnoverResult.rows) {
-// //   if ((record.type === type || record.type === "default") && parseInt(record.active_turnover_amount)  > 0) {
-// //     console.log('devug')
-// //     // Decrease the active_turnover_amount by bet_amount
-// //     const decrement = bet_amount; // your bet or calculation
-// //     let newActiveAmount = parseFloat(record.active_turnover_amount) - decrement;
-
-// //     if (newActiveAmount <= 0) {
-// //       newActiveAmount = 0;
-// //     }
-// //     if(wallet_before < 20){
-// //        newActiveAmount = 0
-// //     }
-// //    try{
-
-// //         await client.query(
-// //       `UPDATE user_turnover_history
-// //        SET active_turnover_amount = $1,
-// //            complete = $2
-// //        WHERE id = $3`,
-// //       [newActiveAmount, newActiveAmount === 0, record.id]
-// //     );
-
-// //     console.log(
-// //       `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-// //     );
-// //    }
-// //    catch(err){
-// //     console.log('freeze-error',record.id)
-// //    }
-// //     // Update user_turnover_history
-
-
-// //     // Optional: update user's wallet if needed
-// //     // const newWallet = user.wallet + decrement;
-// //     // await client.query(
-// //     //   "UPDATE users SET wallet = $1 WHERE id = $2",
-// //     //   [newWallet, user.id]
-// //     // );
-
-// //     // Stop after updating the first applicable record
-// //     break;
-// //   }
-// // }
-
-// await Promise.all(
-//   turnoverResult.rows.map(async record => {
-//     if ((record.type === type || record.type === "default") && parseFloat(record.active_turnover_amount) > 0) {
-//       let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
-//       await client.query(
-//         `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
-//         [newActiveAmount, newActiveAmount === 0, record.id]
-//       );
-//     }
-//   })
-// );
-
-
-
-// console.log("Realtime user event:", timestamp);
-
-
-//   } catch (err) {
-//     console.error(err);
- 
-//   }
-
-
-
-//     let newTurnover = user.turnover;
-
-//     if (user.turnover > 0 && bet_amount > 0) {
-//       console.log('reducing--ttt',newTurnover )
-//       newTurnover = Math.max(0, user.turnover - bet_amount);
-//       if(session.game_type == 'slot' || session.game_type == 'live-casino')
-//       await client.query(
-//         "UPDATE users SET turnover = $1 WHERE id = $2",
-//         [newTurnover, user.id]
-//       );
-
-//       // Optional: log turnover usage
-//       // console.log('reducing--ttt',newTurnover )
-//       // await client.query(
-//       //   `INSERT INTO user_turnover_history (user_id, amount, type)
-//       //    VALUES ($1, $2, 'bet')`,
-//       //   [user.id, bet_amount]
-//       // );
-//     }
-
-
-
-
-//     await client.query("COMMIT");
-
-
-
-
-//     return res.status(200).json({
-//       status: "success",
-//       message: "Callback processed and wallet updated",
-//       wallet: newWallet,
-//     });
-//   } catch (err) {
-//     await client.query("ROLLBACK");
-//     console.error("Error processing callback:", err);
-//     return res.status(500).json({ success: false, message: "Internal server error" });
-//   } finally {
-//     client.release();
-//   }
-// });
 app.post("/result", async (req, res) => {
   const { mobile, bet_amount, wallet_after, timestamp,wallet_before } = req.body;
 
@@ -269,26 +75,7 @@ app.post("/result", async (req, res) => {
       [user.id]
     );
 
-    // console.log('result', turnoverResult)
 
-    // await Promise.all(turnoverResult.rows.map(async record => {
-    //   if (parseFloat(record.active_turnover_amount) > 0) {
-    //     let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
-    //     if (newActiveAmount <= 0) {
-    //       newActiveAmount = 0;
-    //     }
-    //     if(wallet_before < 20){
-    //         newActiveAmount = 0
-    //       }
-    //     await client.query(
-    //       `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
-    //       [newActiveAmount, newActiveAmount == 0, record.id]
-    //     );
-    //         console.log(
-    // `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-    // );
-    //   }
-    // }));
 try{
   const record = turnoverResult.rows.find(
   r => parseFloat(r.active_turnover_amount) > 0
@@ -306,7 +93,7 @@ if (record) {
     `UPDATE user_turnover_history 
      SET active_turnover_amount = $1, complete = $2 
      WHERE id = $3`,
-    [newActiveAmount, newActiveAmount === 0, record.id]
+    [newActiveAmount, newActiveAmount == 0, record.id]
   );
 
   console.log(
@@ -319,52 +106,6 @@ catch (e){
  console.log(e)
 }
 
-
-
-
-
- //    if ((record.type === type || record.type === "default") && parseInt(record.active_turnover_amount)  > 0) {
-// //     console.log('devug')
-// //     // Decrease the active_turnover_amount by bet_amount
-// //     const decrement = bet_amount; // your bet or calculation
-// //     let newActiveAmount = parseFloat(record.active_turnover_amount) - decrement;
-
-// //     if (newActiveAmount <= 0) {
-// //       newActiveAmount = 0;
-// //     }
-// //     if(wallet_before < 20){
-// //        newActiveAmount = 0
-// //     }
-// //    try{
-
-// //         await client.query(
-// //       `UPDATE user_turnover_history
-// //        SET active_turnover_amount = $1,
-// //            complete = $2
-// //        WHERE id = $3`,
-// //       [newActiveAmount, newActiveAmount === 0, record.id]
-// //     );
-
-// //     console.log(
-// //       `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-// //     );
-// //    }
-// //    catch(err){
-// //     console.log('freeze-error',record.id)
-// //    }
-// //     // Update user_turnover_history
-
-
-// //     // Optional: update user's wallet if needed
-// //     // const newWallet = user.wallet + decrement;
-// //     // await client.query(
-// //     //   "UPDATE users SET wallet = $1 WHERE id = $2",
-// //     //   [newWallet, user.id]
-// //     // );
-
-// //     // Stop after updating the first applicable record
-// //     break;
-
     await client.query("COMMIT");
  console.log('result', wallet_after)
     res.status(200).json({ success: true, wallet: wallet_after });
@@ -376,89 +117,6 @@ catch (e){
     client.release();
   }
 });
-
-
-
-
-
-
-
-// app.post("/result", async (req, res) => {
-//   let { mobile, bet_amount, wallet_after, wallet_before } = req.body;
-
-//   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
-
-//   // Convert all numeric inputs safely
-//   const betAmount = parseFloat(bet_amount) || 0;
-//   const walletAfter = parseFloat(wallet_after) || 0;
-//   const walletBefore = parseFloat(wallet_before) || 0;
-
-//   const client = await pool.connect();
-
-//   try {
-//     await client.query("BEGIN");
-
-//     // Case-insensitive user lookup with row lock
-//     const userResult = await client.query(
-//       "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
-//       [mobile]
-//     );
-
-//     if (!userResult.rows.length) {
-//       await client.query("ROLLBACK");
-//       return res.status(404).json({ success: false, message: "User not found" });
-//     }
-
-//     const user = userResult.rows[0];
-
-//     // Update wallet
-//     await client.query(
-//       "UPDATE users SET wallet=$1 WHERE id=$2",
-//       [walletAfter, user.id]
-//     );
-
-//     // Batch update turnover history
-//     await client.query(
-//       `UPDATE user_turnover_history
-//        SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
-//            complete = CASE 
-//                         WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 
-//                         THEN true 
-//                         ELSE complete 
-//                       END
-//        WHERE user_id = $3 AND complete = false`,
-//       [betAmount, walletBefore, user.id]
-//     );
-
-//     // Reduce user's turnover
-//     const newTurnover = Math.max(0, parseFloat(user.turnover) - betAmount);
-//     if (parseFloat(user.turnover) > 0 && betAmount > 0) {
-//       await client.query(
-//         "UPDATE users SET turnover=$1 WHERE id=$2",
-//         [newTurnover, user.id]
-//       );
-//     }
-
-//     await client.query("COMMIT");
-
-//     console.log('Turnover processed:', newTurnover);
-
-//     // Respond
-//     res.status(200).json({ success: true, wallet: walletAfter, turnover: newTurnover });
-
-//   } catch (err) {
-//     await client.query("ROLLBACK");
-//     console.error("Error processing callback:", err);
-//     res.status(500).json({ success: false, message: "Internal server error" });
-//   } finally {
-//     client.release();
-//   }
-// });
-
-
-
-
-
 
 
 function createKey(keyString) {
