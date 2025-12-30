@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import timeout from 'connect-timeout';
 import cors from "cors";
 import bodyParser from "body-parser";
 import authRoutes from "./routes/auth.routes.js";
@@ -16,7 +17,6 @@ const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";
 const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
 
-app.use(express.json());
 
 app.use(
   cors({
@@ -25,6 +25,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(timeout('15s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.json());
@@ -113,7 +114,7 @@ app.post("/result", async (req, res) => {
 
       try {
 // Get all user turnover history for this user, latest first
-const turnoverResult = await pool.query(
+const turnoverResult = await client.query(
   `SELECT * 
    FROM user_turnover_history 
    WHERE user_id = $1 AND complete = false 
@@ -135,9 +136,9 @@ for (const record of turnoverResult.rows) {
     if(wallet_before < 20){
        newActiveAmount = 0
     }
+   try{
 
-    // Update user_turnover_history
-    await pool.query(
+        await client.query(
       `UPDATE user_turnover_history
        SET active_turnover_amount = $1,
            complete = $2
@@ -148,6 +149,12 @@ for (const record of turnoverResult.rows) {
     console.log(
       `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
     );
+   }
+   catch(err){
+    console.log('freeze-error',record.id)
+   }
+    // Update user_turnover_history
+
 
     // Optional: update user's wallet if needed
     // const newWallet = user.wallet + decrement;
@@ -371,7 +378,8 @@ app.post("/launch_game", async (req, res) => {
 
   try {
     // Call the casino API
-    const response = await axios.get(gameUrl);
+   const response = await axios.get(gameUrl, { timeout: 10000 }); // 10 seconds
+
 
     // Return the casino API response to frontend
     res.json({
