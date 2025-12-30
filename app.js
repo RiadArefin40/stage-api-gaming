@@ -68,7 +68,7 @@ app.post("/result", async (req, res) => {
       [mobile]
     );
 
-    console.log('users',userResult )
+    console.log('users',userResult.rows[0] )
 
     if (!userResult.rows.length) {
       await client.query("ROLLBACK");
