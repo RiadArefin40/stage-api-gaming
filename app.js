@@ -44,10 +44,7 @@ app.use("/withdrawals", widthdrawRoutes);
 
 
 app.post("/result", async (req, res) => {
-  const { mobile, timestamp } = req.body;
-const bet_amount = parseFloat(req.body.bet_amount) || 0;
-const wallet_after = parseFloat(req.body.wallet_after) || 0;
-const wallet_before = parseFloat(req.body.wallet_before) || 0;
+  const { mobile, bet_amount, wallet_after, timestamp,wallet_before } = req.body;
 
   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
 
