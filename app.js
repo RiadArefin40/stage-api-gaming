@@ -68,6 +68,8 @@ app.post("/result", async (req, res) => {
       [mobile]
     );
 
+    console.log('users',userResult )
+
     if (!userResult.rows.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "User not found" });
