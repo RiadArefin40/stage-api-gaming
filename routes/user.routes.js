@@ -12,6 +12,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Missing fields" });
 
   try {
+    // Check if user already exists
     const exists = await pool.query(
       "SELECT id FROM users WHERE phone=$1 OR name=$2",
       [phone, name]
@@ -20,6 +21,7 @@ router.post("/", async (req, res) => {
     if (exists.rows.length)
       return res.status(400).json({ error: "User already exists" });
 
+    // Validate referral code if provided
     let validReferral = null;
     if (referred_by) {
       const ref = await pool.query(
@@ -32,8 +34,10 @@ router.post("/", async (req, res) => {
       validReferral = referred_by;
     }
 
+    // Generate unique referral code
     const referral_code = await generateUniqueReferralCode();
 
+    // Insert user into users table
     const result = await pool.query(
       `INSERT INTO users (name, phone, password, referral_code, referred_by, wallet)
        VALUES ($1,$2,$3,$4,$5,$6)
@@ -41,11 +45,22 @@ router.post("/", async (req, res) => {
       [name, phone, password, referral_code, validReferral, wallet || 0]
     );
 
-    res.json({ message: "User created", user: result.rows[0] });
+    const newUser = result.rows[0];
+
+    // Insert phone into user_phone_numbers table
+    await pool.query(
+      `INSERT INTO user_phone_numbers (user_id, phone)
+       VALUES ($1, $2)`,
+      [newUser.id, phone]
+    );
+
+    res.json({ message: "User created", user: newUser });
   } catch (err) {
+    console.error("Error creating user:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Get all users
 router.get("/", async (_, res) => {
