@@ -43,165 +43,83 @@ app.use("/withdrawals", widthdrawRoutes);
 
 
 
-// app.post("/result", async (req, res) => {
-//   // const { mobile, bet_amount, wallet_after, timestamp,wallet_before } = req.body;
-// const bet_amount = parseFloat(req.body.bet_amount) || 0;
-// const wallet_after = parseFloat(req.body.wallet_after) || 0;
-// const wallet_before = parseFloat(req.body.wallet_before) || 0;
-
-//   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
-
-//   const client = await pool.connect();
-//   try {
-//     await client.query("BEGIN");
-
-//     // Case-insensitive user search
-//     const userResult = await client.query(
-//       "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
-//       [mobile]
-//     );
-//     if (!userResult.rows.length) {
-//       await client.query("ROLLBACK");
-//       return res.status(404).json({ success: false, message: "User not found" });
-//     }
-//     const user = userResult.rows[0];
-//     console.log('user',user)
-//     // Update wallet
-//     await client.query(
-//       "UPDATE users SET wallet=$1 WHERE id=$2",
-//       [wallet_after, user.id]
-//     );
-
-//     // Update turnover history asynchronously
-//     const turnoverResult = await client.query(
-//       `SELECT * FROM user_turnover_history WHERE user_id=$1 AND complete=false ORDER BY created_at DESC`,
-//       [user.id]
-//     );
-
-
-// try{
-//   const record = turnoverResult.rows.find(
-//   r => parseFloat(r.active_turnover_amount) > 0
-// );
-
-// if (record) {
-//   let newActiveAmount =
-//     Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
-
-//   if (wallet_before < 20) {
-//     newActiveAmount = 0;
-//   }
-
-//   await client.query(
-//     `UPDATE user_turnover_history 
-//      SET active_turnover_amount = $1, complete = $2 
-//      WHERE id = $3`,
-//     [newActiveAmount, newActiveAmount == 0, record.id]
-//   );
-
-//   console.log(
-//     `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-//   );
-// }
-
-// }
-// catch (e){
-//  console.log(e)
-// }
-
-//     await client.query("COMMIT");
-//  console.log('result', wallet_after)
-//     res.status(200).json({ success: true, wallet: wallet_after });
-//   } catch (err) {
-//     await client.query("ROLLBACK");
-//     console.error("Error processing callback:", err);
-//     res.status(500).json({ success: false });
-//   } finally {
-//     client.release();
-//   }
-// });
-
-
 app.post("/result", async (req, res) => {
-  let { mobile, bet_amount, wallet_after, wallet_before } = req.body;
+  // const { mobile, bet_amount, wallet_after, timestamp,wallet_before } = req.body;
+const bet_amount = parseFloat(req.body.bet_amount) || 0;
+const wallet_after = parseFloat(req.body.wallet_after) || 0;
+const wallet_before = parseFloat(req.body.wallet_before) || 0;
 
   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
 
-  // Ensure numeric types
-  bet_amount = parseFloat(bet_amount) || 0;
-  wallet_after = parseFloat(wallet_after) || 0;
-  wallet_before = parseFloat(wallet_before) || 0;
-
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
 
-    // Lock user row
+    // Case-insensitive user search
     const userResult = await client.query(
       "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
       [mobile]
     );
-
     if (!userResult.rows.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "User not found" });
     }
-
     const user = userResult.rows[0];
-
-    // Update wallet immediately
+    console.log('user',user)
+    // Update wallet
     await client.query(
       "UPDATE users SET wallet=$1 WHERE id=$2",
       [wallet_after, user.id]
     );
 
-    // Update the first active turnover record
-    const updateTurnoverQuery = `
-      UPDATE user_turnover_history
-      SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
-          complete = CASE WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 THEN true ELSE complete END
-      WHERE id = (
-        SELECT id FROM user_turnover_history
-        WHERE user_id=$3 AND complete=false AND active_turnover_amount > 0
-        ORDER BY created_at ASC
-        LIMIT 1
-      )
-      RETURNING id, active_turnover_amount, complete
-    `;
-
-    const turnoverUpdateResult = await client.query(
-      updateTurnoverQuery,
-      [bet_amount, wallet_before, user.id]
+    // Update turnover history asynchronously
+    const turnoverResult = await client.query(
+      `SELECT * FROM user_turnover_history WHERE user_id=$1 AND complete=false ORDER BY created_at DESC`,
+      [user.id]
     );
 
-    if (turnoverUpdateResult.rows.length) {
-      const record = turnoverUpdateResult.rows[0];
-      console.log(
-        `Updated turnover record ${record.id}: active_turnover_amount=${record.active_turnover_amount}, complete=${record.complete}`
-      );
-    }
 
-    // Reduce user's total turnover
-    const newTurnover = Math.max(0, parseFloat(user.turnover) - bet_amount);
-    await client.query(
-      "UPDATE users SET turnover=$1 WHERE id=$2",
-      [newTurnover, user.id]
-    );
+try{
+  const record = turnoverResult.rows.find(
+  r => parseFloat(r.active_turnover_amount) > 0
+);
+
+if (record) {
+  let newActiveAmount =
+    Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+
+  if (wallet_before < 20) {
+    newActiveAmount = 0;
+  }
+
+  await client.query(
+    `UPDATE user_turnover_history 
+     SET active_turnover_amount = $1, complete = $2 
+     WHERE id = $3`,
+    [newActiveAmount, newActiveAmount == 0, record.id]
+  );
+
+  console.log(
+    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+  );
+}
+
+}
+catch (e){
+ console.log(e)
+}
 
     await client.query("COMMIT");
-
+ console.log('result', wallet_after)
     res.status(200).json({ success: true, wallet: wallet_after });
-
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error processing callback:", err);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false });
   } finally {
     client.release();
   }
 });
-
 
 
 function createKey(keyString) {
