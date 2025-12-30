@@ -271,24 +271,52 @@ app.post("/result", async (req, res) => {
 
     // console.log('result', turnoverResult)
 
-    await Promise.all(turnoverResult.rows.map(async record => {
-      if (parseFloat(record.active_turnover_amount) > 0) {
-        let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
-        if (newActiveAmount <= 0) {
-          newActiveAmount = 0;
-        }
-        if(wallet_before < 20){
-            newActiveAmount = 0
-          }
-        await client.query(
-          `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
-          [newActiveAmount, newActiveAmount == 0, record.id]
-        );
-            console.log(
-    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+    // await Promise.all(turnoverResult.rows.map(async record => {
+    //   if (parseFloat(record.active_turnover_amount) > 0) {
+    //     let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+    //     if (newActiveAmount <= 0) {
+    //       newActiveAmount = 0;
+    //     }
+    //     if(wallet_before < 20){
+    //         newActiveAmount = 0
+    //       }
+    //     await client.query(
+    //       `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
+    //       [newActiveAmount, newActiveAmount == 0, record.id]
+    //     );
+    //         console.log(
+    // `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+    // );
+    //   }
+    // }));
+
+    for (const record of turnoverResult.rows) {
+  if (parseFloat(record.active_turnover_amount) > 0) {
+
+    let newActiveAmount =
+      Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+
+    if (newActiveAmount <= 0) {
+      newActiveAmount = 0;
+    }
+
+    if (wallet_before < 20) {
+      newActiveAmount = 0;
+    }
+
+    await client.query(
+      `UPDATE user_turnover_history 
+       SET active_turnover_amount = $1, complete = $2 
+       WHERE id = $3`,
+      [newActiveAmount, newActiveAmount === 0, record.id]
     );
-      }
-    }));
+
+    console.log(
+      `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+    );
+  }
+}
+
 
 
 
