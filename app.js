@@ -26,7 +26,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(timeout('35s'));
+app.use(timeout('55s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.json());
