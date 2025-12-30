@@ -273,13 +273,66 @@ app.post("/result", async (req, res) => {
 
     await Promise.all(turnoverResult.rows.map(async record => {
       if (parseFloat(record.active_turnover_amount) > 0) {
-        const newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+        let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+        if (newActiveAmount <= 0) {
+          newActiveAmount = 0;
+        }
+        if(wallet_before < 20){
+            newActiveAmount = 0
+          }
         await client.query(
           `UPDATE user_turnover_history SET active_turnover_amount=$1, complete=$2 WHERE id=$3`,
           [newActiveAmount, newActiveAmount === 0, record.id]
         );
+            console.log(
+    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+    );
       }
     }));
+
+
+
+ //    if ((record.type === type || record.type === "default") && parseInt(record.active_turnover_amount)  > 0) {
+// //     console.log('devug')
+// //     // Decrease the active_turnover_amount by bet_amount
+// //     const decrement = bet_amount; // your bet or calculation
+// //     let newActiveAmount = parseFloat(record.active_turnover_amount) - decrement;
+
+// //     if (newActiveAmount <= 0) {
+// //       newActiveAmount = 0;
+// //     }
+// //     if(wallet_before < 20){
+// //        newActiveAmount = 0
+// //     }
+// //    try{
+
+// //         await client.query(
+// //       `UPDATE user_turnover_history
+// //        SET active_turnover_amount = $1,
+// //            complete = $2
+// //        WHERE id = $3`,
+// //       [newActiveAmount, newActiveAmount === 0, record.id]
+// //     );
+
+// //     console.log(
+// //       `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+// //     );
+// //    }
+// //    catch(err){
+// //     console.log('freeze-error',record.id)
+// //    }
+// //     // Update user_turnover_history
+
+
+// //     // Optional: update user's wallet if needed
+// //     // const newWallet = user.wallet + decrement;
+// //     // await client.query(
+// //     //   "UPDATE users SET wallet = $1 WHERE id = $2",
+// //     //   [newWallet, user.id]
+// //     // );
+
+// //     // Stop after updating the first applicable record
+// //     break;
 
     await client.query("COMMIT");
  console.log('result', wallet_after)
