@@ -17,7 +17,7 @@ import { pool } from "./db.js";
 const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
 const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
-axiosRetry(axios, { retries: 2, retryDelay: axiosRetry.exponentialDelay });
+axiosRetry(axios, { retries: 5, retryDelay: axiosRetry.exponentialDelay });
 
 app.use(
   cors({
@@ -165,29 +165,164 @@ export function decrypt(encryptedBase64) {
   }
 }
 
-app.post("/launch_game", async (req, res) => {
-   const client = await pool.connect();
-  const { userName, game_uid, credit_amount, game_type} = req.body;
-  const SERVER_URL = "https://bulkapi.in"; 
-   console.log('1.Start Process for encryption -decryption',userName )
-  if (!userName || !game_uid || !credit_amount) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "Missing required fields: userName, game_uid, credit_amount" 
-    });
-  }
+// app.post("/launch_game", async (req, res) => {
+//    const client = await pool.connect();
+//   const { userName, game_uid, credit_amount, game_type} = req.body;
+//   const SERVER_URL = "https://bulkapi.in"; 
+//    console.log('1.Start Process for encryption -decryption',userName )
+//   if (!userName || !game_uid || !credit_amount) {
+//     return res.status(400).json({ 
+//       success: false, 
+//       message: "Missing required fields: userName, game_uid, credit_amount" 
+//     });
+//   }
 
 
 
-    // Fetch the user from database
-    const userResult = await pool.query(
-      "SELECT id, wallet FROM users WHERE name=$1",
-      [userName]
-    );
+//     // Fetch the user from database
+//     const userResult = await pool.query(
+//       "SELECT id, wallet FROM users WHERE name=$1",
+//       [userName]
+//     );
 
     
 
+//     if (!userResult.rows.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found"
+//       });
+//     }
+
+//     const user = userResult.rows[0];
+// console.log('2.Start Process for encryption -genarating user from db',userResult )
+//    if(game_type){
+
+//         await client.query(
+//       `INSERT INTO active_game_sessions (user_id, game_type)
+//        VALUES ($1, $2)`,
+//       [user.id, game_type]
+//     );
+
+//     await client.query("COMMIT");
+
+//    }
+//       // Insert or update active session
+
+
+//     const wallet_amount = parseFloat(user.wallet); // Use wallet as credit amount
+
+//     if (wallet_amount <= 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "User wallet balance is insufficient"
+//       });
+//     }
+
+
+//   // Match PHP: round(microtime(true) * 1000) - milliseconds
+//   const timestamp = Math.round(Date.now());
+
+//   // Create payload exactly like PHP code
+//   const requestData = {
+//     user_id: userName,
+//     wallet_amount: parseFloat(wallet_amount),
+//     game_uid: game_uid,
+//     token: API_TOKEN,
+//     timestamp: timestamp
+//   };
+
+//   // Match PHP: json_encode($requestData, JSON_UNESCAPED_SLASHES)
+//   const message = JSON.stringify(requestData);
+//   console.log('3. Encryption Done ',message )
+  
+//   const encryptedPayload = encrypt(message);
+
+//   // Self-test: verify we can decrypt our own encryption
+//   // try {
+//   //   const decrypted = decrypt(encryptedPayload);
+//   //   console.log("4.✅ Self-decryption test - Decrypted:");
+//   //   const parsed = JSON.parse(decrypted);
+//   //   // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
+    
+//   //   // Verify it matches original
+//   //   if (decrypted === message) {
+//   //     console.log("✅ Encryption/Decryption cycle verified!");
+//   //   } else {
+//   //     console.log("⚠️  WARNING: Decrypted text doesn't match original!");
+//   //     console.log("Decrypted:", decrypted);
+//   //   }
+//   // } catch (e) {
+//   //   console.error("❌ Self-decryption test FAILED:", e.message);
+//   // }
+
+//   // Build URL with parameters (exactly like PHP)
+//   const gameUrl = `${SERVER_URL}/launch_game?` + 
+//     `user_id=${encodeURIComponent(userName)}` +
+//     `&wallet_amount=${encodeURIComponent(credit_amount)}` +
+//     `&game_uid=${encodeURIComponent(game_uid)}` +
+//     `&token=${encodeURIComponent(API_TOKEN)}` +
+//     `&timestamp=${encodeURIComponent(timestamp)}` +
+//     `&payload=${encodeURIComponent(encryptedPayload)}`;
+
+
+//   try {
+//     // Call the casino API
+//  const response = await axios.get(gameUrl, { timeout: 10000 });
+
+
+
+//     // Return the casino API response to frontend
+//     res.json({
+//       success: true,
+//       data: response.data,
+//       gameUrl: gameUrl
+//     });
+//       console.log("🌐 Generated completed");
+//   } catch (error) {
+//     console.error("❌ API Error:", error.response?.data || error.message);
+//     res.status(error.response?.status || 500).json({
+//       success: false,
+//       message: "Failed to launch game",
+//       error: error.response?.data || error.message
+//     });
+//   }
+// });
+
+app.post("/launch_game", async (req, res) => {
+  const { userName, game_uid, credit_amount, game_type } = req.body;
+  const SERVER_URL = "https://bulkapi.in";
+
+  console.log("🚀 Launch game request received:", {
+    userName,
+    game_uid,
+    credit_amount
+  });
+
+  if (!userName || !game_uid || !credit_amount) {
+    console.warn("⚠️ Missing required fields");
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields"
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    console.log("🔗 DB connected");
+    await client.query("BEGIN");
+
+    // 🔍 Fetch user
+    const userResult = await client.query(
+      "SELECT id, wallet FROM users WHERE name = $1",
+      [userName]
+    );
+
     if (!userResult.rows.length) {
+      console.warn(`❌ User not found: ${userName}`);
+      await client.query("ROLLBACK");
+
       return res.status(404).json({
         success: false,
         message: "User not found"
@@ -195,100 +330,85 @@ app.post("/launch_game", async (req, res) => {
     }
 
     const user = userResult.rows[0];
-console.log('2.Start Process for encryption -genarating user from db',userResult )
-   if(game_type){
+    const walletAmount = Number(user.wallet);
 
-        await client.query(
-      `INSERT INTO active_game_sessions (user_id, game_type)
-       VALUES ($1, $2)`,
-      [user.id, game_type]
-    );
+    if (isNaN(walletAmount) || walletAmount <= 0) {
+      console.warn(`❌ Insufficient wallet: ${walletAmount}`);
+      await client.query("ROLLBACK");
 
-    await client.query("COMMIT");
-
-   }
-      // Insert or update active session
-
-
-    const wallet_amount = parseFloat(user.wallet); // Use wallet as credit amount
-
-    if (wallet_amount <= 0) {
       return res.status(400).json({
         success: false,
-        message: "User wallet balance is insufficient"
+        message: "Insufficient wallet balance"
       });
     }
 
+    // ✅ Insert game session
+    if (game_type) {
+      await client.query(
+        `INSERT INTO active_game_sessions (user_id, game_type)
+         VALUES ($1, $2)`,
+        [user.id, game_type]
+      );
+      console.log("🎮 Game session created:", game_type);
+    }
 
-  // Match PHP: round(microtime(true) * 1000) - milliseconds
-  const timestamp = Math.round(Date.now());
+    await client.query("COMMIT");
+    console.log("✅ DB transaction committed");
 
-  // Create payload exactly like PHP code
-  const requestData = {
-    user_id: userName,
-    wallet_amount: parseFloat(wallet_amount),
-    game_uid: game_uid,
-    token: API_TOKEN,
-    timestamp: timestamp
-  };
+    // ---------- ENCRYPTION ----------
+    const timestamp = Date.now();
 
-  // Match PHP: json_encode($requestData, JSON_UNESCAPED_SLASHES)
-  const message = JSON.stringify(requestData);
-  console.log('3. Encryption Done ',message )
-  
-  const encryptedPayload = encrypt(message);
+    const payload = {
+      user_id: userName,
+      wallet_amount: walletAmount,
+      game_uid,
+      token: API_TOKEN,
+      timestamp
+    };
 
-  // Self-test: verify we can decrypt our own encryption
-  // try {
-  //   const decrypted = decrypt(encryptedPayload);
-  //   console.log("4.✅ Self-decryption test - Decrypted:");
-  //   const parsed = JSON.parse(decrypted);
-  //   // console.log("✅ Self-decryption test - Parsed:", JSON.stringify(parsed, null, 2));
-    
-  //   // Verify it matches original
-  //   if (decrypted === message) {
-  //     console.log("✅ Encryption/Decryption cycle verified!");
-  //   } else {
-  //     console.log("⚠️  WARNING: Decrypted text doesn't match original!");
-  //     console.log("Decrypted:", decrypted);
-  //   }
-  // } catch (e) {
-  //   console.error("❌ Self-decryption test FAILED:", e.message);
-  // }
+    const encryptedPayload = encrypt(JSON.stringify(payload));
 
-  // Build URL with parameters (exactly like PHP)
-  const gameUrl = `${SERVER_URL}/launch_game?` + 
-    `user_id=${encodeURIComponent(userName)}` +
-    `&wallet_amount=${encodeURIComponent(credit_amount)}` +
-    `&game_uid=${encodeURIComponent(game_uid)}` +
-    `&token=${encodeURIComponent(API_TOKEN)}` +
-    `&timestamp=${encodeURIComponent(timestamp)}` +
-    `&payload=${encodeURIComponent(encryptedPayload)}`;
+    const gameUrl =
+      `${SERVER_URL}/launch_game?` +
+      `user_id=${encodeURIComponent(userName)}` +
+      `&wallet_amount=${encodeURIComponent(credit_amount)}` +
+      `&game_uid=${encodeURIComponent(game_uid)}` +
+      `&token=${encodeURIComponent(API_TOKEN)}` +
+      `&timestamp=${timestamp}` +
+      `&payload=${encodeURIComponent(encryptedPayload)}`;
 
+    console.log("🔗 Game URL generated successfully");
 
-  try {
-    // Call the casino API
- const response = await axios.get(gameUrl, { timeout: 10000 });
+    // ⏱️ API Call
+    const response = await axios.get(gameUrl, {
+      timeout: 8000,
+      validateStatus: status => status < 500
+    });
 
+    console.log("✅ Game launch successful");
 
-
-    // Return the casino API response to frontend
-    res.json({
+    return res.json({
       success: true,
       data: response.data,
-      gameUrl: gameUrl
+      gameUrl
     });
-      console.log("🌐 Generated completed");
+
   } catch (error) {
-    console.error("❌ API Error:", error.response?.data || error.message);
-    res.status(error.response?.status || 500).json({
+    await client.query("ROLLBACK");
+
+    console.error("❌ Launch Game Error:", error.message);
+
+    return res.status(500).json({
       success: false,
-      message: "Failed to launch game",
-      error: error.response?.data || error.message
+      message: "Internal server error",
+      error: error.message
     });
+
+  } finally {
+    client.release();
+    console.log("🔌 DB connection released");
   }
 });
-
 
 app.get("/test", (_, res) => res.send("Server running"));
 
