@@ -366,15 +366,44 @@ router.delete("/phone", async (req, res) => {
 router.get("/phones/:user_id", async (req, res) => {
   const { user_id } = req.params;
 
-  const result = await pool.query(
-    `SELECT * FROM user_phone_numbers
-     WHERE user_id = $1
-     ORDER BY is_verified DESC, created_at ASC`,
-    [user_id]
-  );
+  try {
+    // Fetch the user
+    const userResult = await pool.query(
+      "SELECT id, name, email, phone FROM users WHERE id = $1",
+      [user_id]
+    );
 
-  res.json(result.rows);
+    if (!userResult.rows.length) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const user = userResult.rows[0];
+
+    // Fetch the phone numbers
+    const phonesResult = await pool.query(
+      `SELECT id, phone_number, is_verified, created_at 
+       FROM user_phone_numbers
+       WHERE user_id = $1
+       ORDER BY is_verified DESC, created_at ASC`,
+      [user_id]
+    );
+
+    res.json({
+      success: true,
+      user,
+      phones: phonesResult.rows
+    });
+
+  } catch (error) {
+    console.error("Error fetching phones:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 });
+
 
 
 
