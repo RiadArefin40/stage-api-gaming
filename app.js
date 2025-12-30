@@ -269,7 +269,7 @@ app.post("/result", async (req, res) => {
       [user.id]
     );
 
-    console.log('result', turnoverResult)
+    // console.log('result', turnoverResult)
 
     await Promise.all(turnoverResult.rows.map(async record => {
       if (parseFloat(record.active_turnover_amount) > 0) {
