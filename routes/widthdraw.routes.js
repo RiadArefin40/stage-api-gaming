@@ -239,4 +239,27 @@ router.get("/", async (_, res) => {
   }
 });
 
+// Get withdrawals for a specific user
+router.get("/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT w.*, u.name AS username
+      FROM withdrawals w
+      JOIN users u ON u.id = w.user_id
+      WHERE w.user_id = $1
+      ORDER BY w.created_at DESC
+      `,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 export default router;
