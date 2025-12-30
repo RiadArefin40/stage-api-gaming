@@ -384,9 +384,14 @@ app.use("/withdrawals", widthdrawRoutes);
 
 
 app.post("/result", async (req, res) => {
-  const { mobile, bet_amount, wallet_after, timestamp, wallet_before } = req.body;
+  let { mobile, bet_amount, wallet_after, timestamp, wallet_before } = req.body;
 
   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
+
+  // Ensure numeric values are actually numbers
+  bet_amount = parseFloat(bet_amount) || 0;
+  wallet_after = parseFloat(wallet_after) || 0;
+  wallet_before = parseFloat(wallet_before) || 0;
 
   const client = await pool.connect();
 
@@ -406,35 +411,34 @@ app.post("/result", async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Update wallet immediately
+    // Update wallet safely
     await client.query(
-      "UPDATE users SET wallet=$1 WHERE id=$2",
+      "UPDATE users SET wallet = $1 WHERE id = $2",
       [wallet_after, user.id]
     );
 
-    // Batch update turnover history in one query
-    // Set active_turnover_amount = 0 if wallet_before < 20
+    // Update turnover history safely, using numeric values
     await client.query(
-  `UPDATE user_turnover_history
-   SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
-       complete = CASE WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 THEN true ELSE complete END
-   WHERE user_id = $3 AND complete = false`,
-  [parseFloat(bet_amount), parseFloat(wallet_before), user.id]
-
+      `UPDATE user_turnover_history
+       SET active_turnover_amount = GREATEST(active_turnover_amount - $1, 0),
+           complete = CASE WHEN GREATEST(active_turnover_amount - $1, 0) = 0 OR $2 < 20 THEN true ELSE complete END
+       WHERE user_id = $3 AND complete = false`,
+      [bet_amount, wallet_before, user.id]
     );
 
-    // Reduce user's turnover if applicable
-    const newTurnover = Math.max(0, user.turnover - bet_amount);
-    if (user.turnover > 0 && bet_amount > 0) {
+    // Reduce user's turnover safely
+    const newTurnover = Math.max(0, parseFloat(user.turnover) - bet_amount);
+    if (parseFloat(user.turnover) > 0 && bet_amount > 0) {
       await client.query(
         "UPDATE users SET turnover = $1 WHERE id = $2",
         [newTurnover, user.id]
       );
     }
-    console.log('turnover counting,',newTurnover)
+
+    console.log('Turnover updated:', newTurnover);
+
     await client.query("COMMIT");
 
-    // Respond immediately
     res.status(200).json({ success: true, wallet: wallet_after });
 
   } catch (err) {
@@ -445,6 +449,7 @@ app.post("/result", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
