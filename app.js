@@ -256,7 +256,7 @@ app.post("/result", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     const user = userResult.rows[0];
-
+    console.log('user',user)
     // Update wallet
     await client.query(
       "UPDATE users SET wallet=$1 WHERE id=$2",
@@ -269,6 +269,8 @@ app.post("/result", async (req, res) => {
       [user.id]
     );
 
+    console.log('result', turnoverResult)
+
     await Promise.all(turnoverResult.rows.map(async record => {
       if (parseFloat(record.active_turnover_amount) > 0) {
         const newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
@@ -280,7 +282,7 @@ app.post("/result", async (req, res) => {
     }));
 
     await client.query("COMMIT");
-
+ console.log('result', wallet_after)
     res.status(200).json({ success: true, wallet: wallet_after });
   } catch (err) {
     await client.query("ROLLBACK");
