@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db.js";
-import { checkDeposit, confirmDeposit } from "../services/depositApi.js";
+import { checkDeposit, confirmDeposit } from "./services.routes.js";
 const router = express.Router();
 
 // Create deposit
