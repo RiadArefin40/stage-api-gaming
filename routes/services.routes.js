@@ -29,7 +29,7 @@ export const checkDeposit = async (transaction_id) => {
 
     console.log("[DEBUG] Sending request to Check Deposit API...", API_BASE_URL);
     const response = await axiosInstance.post(
-      `${API_BASE_URL}/bot/check-payout`,
+      `${API_BASE_URL}bot/check-payout`,
       payload,
       {
         headers: {
