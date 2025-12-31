@@ -60,7 +60,7 @@ export const confirmDeposit = async (payout_id) => {
 
     console.log("[DEBUG] Sending request to Confirm Deposit API...");
     const response = await axios.post(
-      `${API_BASE_URL}/bot/confirm-payout`,
+      `${API_BASE_URL}bot/confirm-payout`,
       payload,
       {
         headers: {
