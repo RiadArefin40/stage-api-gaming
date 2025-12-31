@@ -24,8 +24,9 @@ export const checkDeposit = async (transaction_id) => {
   try {
     console.log("[DEBUG] Checking deposit for transaction_id:", transaction_id);
 
-    const payload = { transaction_id };
-    const hash = generatePayloadHash('74P0I2DX');
+    const payload = { transaction_id: '74P0I2DX' };
+    const hash = generatePayloadHash(payload);
+
 
     console.log("[DEBUG] Sending request to Check Deposit API...", API_BASE_URL);
     const response = await axiosInstance.post(
