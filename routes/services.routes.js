@@ -7,15 +7,21 @@ const API_KEY = process.env.PAYOUT_API_KEY;
 // Generate SHA-256 hash of the raw JSON payload
 export const generatePayloadHash = (payload) => {
   const jsonString = JSON.stringify(payload);
-  return crypto.createHash("sha256").update(jsonString).digest("hex");
+  console.log("[DEBUG] Payload JSON:", jsonString);
+  const hash = crypto.createHash("sha256").update(jsonString).digest("hex");
+  console.log("[DEBUG] Generated SHA-256 Hash:", hash);
+  return hash;
 };
 
 // -------------------- CHECK DEPOSIT --------------------
 export const checkDeposit = async (transaction_id) => {
   try {
+    console.log("[DEBUG] Checking deposit for transaction_id:", transaction_id);
+
     const payload = { transaction_id };
     const hash = generatePayloadHash(payload);
 
+    console.log("[DEBUG] Sending request to Check Deposit API...", API_BASE_URL);
     const response = await axios.post(
       `${API_BASE_URL}/bot/check-payout`,
       payload,
@@ -29,10 +35,11 @@ export const checkDeposit = async (transaction_id) => {
       }
     );
 
+    console.log("[DEBUG] Check Deposit API Response:", response.data);
     return response.data;
 
   } catch (err) {
-    console.error("Check Deposit API Error:", err.response?.data || err.message);
+    console.error("[ERROR] Check Deposit API Error:", err.response?.data || err.message);
     return { success: false, message: err.response?.data?.message || err.message };
   }
 };
@@ -40,11 +47,14 @@ export const checkDeposit = async (transaction_id) => {
 // -------------------- CONFIRM DEPOSIT --------------------
 export const confirmDeposit = async (payout_id) => {
   try {
+    console.log("[DEBUG] Confirming deposit for payout_id:", payout_id);
+
     const payload = { payout_id };
     const hash = generatePayloadHash(payload);
 
+    console.log("[DEBUG] Sending request to Confirm Deposit API...");
     const response = await axios.post(
-      `${API_BASE_URL}`,
+      `${API_BASE_URL}/bot/confirm-payout`,
       payload,
       {
         headers: {
@@ -56,10 +66,11 @@ export const confirmDeposit = async (payout_id) => {
       }
     );
 
+    console.log("[DEBUG] Confirm Deposit API Response:", response.data);
     return response.data;
 
   } catch (err) {
-    console.error("Confirm Deposit API Error:", err.response?.data || err.message);
+    console.error("[ERROR] Confirm Deposit API Error:", err.response?.data || err.message);
     return { success: false, message: err.response?.data?.message || err.message };
   }
 };
