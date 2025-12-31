@@ -1,7 +1,13 @@
 import axios from "axios";
 import crypto from "crypto";
 
-const API_BASE_URL = process.env.PAYOUT_API_URL || "https://demo.com.bd/api/v1";
+const axiosInstance = axios.create({
+  httpsAgent: new https.Agent({  
+    rejectUnauthorized: false  // allow self-signed certs
+  })
+});
+
+const API_BASE_URL = process.env.PAYOUT_API_URL;
 const API_KEY = process.env.PAYOUT_API_KEY;
 
 // Generate SHA-256 hash of the raw JSON payload
@@ -22,7 +28,7 @@ export const checkDeposit = async (transaction_id) => {
     const hash = generatePayloadHash('74P0I2DX');
 
     console.log("[DEBUG] Sending request to Check Deposit API...", API_BASE_URL);
-    const response = await axios.post(
+    const response = await axiosInstance.post(
       `${API_BASE_URL}/bot/check-payout`,
       payload,
       {
