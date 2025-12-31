@@ -44,7 +44,7 @@ export const confirmDeposit = async (payout_id) => {
     const hash = generatePayloadHash(payload);
 
     const response = await axios.post(
-      `${API_BASE_URL}/bot/confirm-payout`,
+      `${API_BASE_URL}`,
       payload,
       {
         headers: {
