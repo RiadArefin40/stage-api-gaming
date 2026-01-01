@@ -3,6 +3,52 @@ import { pool } from "../db.js";
 
 const router = express.Router();
 
+
+
+
+
+
+
+// POST /api/system-settings/auto-payment
+router.post("/auto-payment", async (req, res) => {
+  const { enabled } = req.body; // expects boolean true/false
+
+  if (enabled === undefined) {
+    return res.status(400).json({ success: false, error: "Missing 'enabled' field" });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ('auto_payment_enabled', $1, NOW())
+       ON CONFLICT (key)
+       DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [enabled ? "true" : "false"]
+    );
+
+    res.json({ success: true, auto_payment_enabled: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// GET /api/system-settings/auto-payment
+router.get("/auto-payment", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key='auto_payment_enabled'"
+    );
+
+    const enabled = result.rows.length && result.rows[0].value === "true";
+
+    res.json({ success: true, auto_payment_enabled: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 /**
  * GET all gateways
  */
