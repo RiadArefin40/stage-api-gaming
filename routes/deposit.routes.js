@@ -21,7 +21,7 @@ const autoApproveDeposit = async (depositId) => {
 
     const deposit = rows[0];
 
-    // Allow retry if stuck in processing
+    // Allow retry only for these states
     if (!["pending", "processing"].includes(deposit.status)) {
       await client.query("ROLLBACK");
       return;
@@ -32,7 +32,17 @@ const autoApproveDeposit = async (depositId) => {
       const check = await checkDeposit(deposit.transaction_id);
 
       if (!check?.success || !check?.data?.payout_id) {
-        throw new Error("Deposit verification failed");
+        await client.query(
+          `UPDATE deposits
+           SET status='failed',
+               retry_count = retry_count + 1,
+               failure_reason = $1
+           WHERE id = $2`,
+          ["Verification failed", deposit.id]
+        );
+
+        await client.query("COMMIT");
+        return;
       }
 
       await client.query(
@@ -57,7 +67,17 @@ const autoApproveDeposit = async (depositId) => {
       Number.isNaN(payoutAmount) ||
       payoutAmount !== depositAmount - bonusAmount
     ) {
-      throw new Error("Payout amount mismatch");
+      await client.query(
+        `UPDATE deposits
+         SET status='failed',
+             retry_count = retry_count + 1,
+             failure_reason = $1
+         WHERE id = $2`,
+        ["Payout mismatch", deposit.id]
+      );
+
+      await client.query("COMMIT");
+      return;
     }
 
     // ---------------- STEP 3: FINALIZE ----------------
@@ -78,6 +98,7 @@ const autoApproveDeposit = async (depositId) => {
     await client.query("COMMIT");
 
     console.log(`✅ Deposit ${deposit.id} auto-approved`);
+
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("❌ Auto approval failed:", err.message);
@@ -85,6 +106,7 @@ const autoApproveDeposit = async (depositId) => {
     client.release();
   }
 };
+
 
 
 
