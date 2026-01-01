@@ -5,6 +5,89 @@ const router = express.Router();
 
 // Create deposit
 
+
+const autoApproveDeposit = async (depositId) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
+      "SELECT * FROM deposits WHERE id=$1 FOR UPDATE",
+      [depositId]
+    );
+
+    if (!rows.length) return;
+
+    const deposit = rows[0];
+
+    // Allow retry if stuck in processing
+    if (!["pending", "processing"].includes(deposit.status)) {
+      await client.query("ROLLBACK");
+      return;
+    }
+
+    // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
+    if (!deposit.external_payout_id) {
+      const check = await checkDeposit(deposit.transaction_id);
+
+      if (!check?.success || !check?.data?.payout_id) {
+        throw new Error("Deposit verification failed");
+      }
+
+      await client.query(
+        `UPDATE deposits 
+         SET external_payout_id=$1, status='processing' 
+         WHERE id=$2`,
+        [check.data.payout_id, deposit.id]
+      );
+
+      deposit.external_payout_id = check.data.payout_id;
+    }
+
+    // ---------------- STEP 2: CONFIRM PAYOUT ----------------
+    const confirm = await confirmDeposit(deposit.external_payout_id);
+
+    const payoutAmount = Number(confirm?.data?.amount);
+    const depositAmount = Number(deposit.amount);
+    const bonusAmount = Number(deposit.bonus_amount);
+
+    if (
+      !confirm?.success ||
+      Number.isNaN(payoutAmount) ||
+      payoutAmount !== depositAmount - bonusAmount
+    ) {
+      throw new Error("Payout amount mismatch");
+    }
+
+    // ---------------- STEP 3: FINALIZE ----------------
+    await client.query(
+      `UPDATE deposits 
+       SET status='approved', external_payout_id=$1 
+       WHERE id=$2`,
+      [confirm.data.payout_id, deposit.id]
+    );
+
+    await client.query(
+      `UPDATE users 
+       SET balance = balance + $1 
+       WHERE id = $2`,
+      [deposit.amount, deposit.user_id]
+    );
+
+    await client.query("COMMIT");
+
+    console.log(`✅ Deposit ${deposit.id} auto-approved`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Auto approval failed:", err.message);
+  } finally {
+    client.release();
+  }
+};
+
+
+
 // Create deposit request
 router.post("/", async (req, res) => {
   const {
@@ -17,75 +100,95 @@ router.post("/", async (req, res) => {
     promo_code
   } = req.body;
 
-  // Validate required fields
   if (!user_id || !amount || !sender_number || !receiver_number || !payment_gateway || !transaction_id) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  const numericAmount = Number(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ error: "Invalid amount" });
+  }
+
+  const client = await pool.connect();
+
   try {
-    // Check if transaction_id already exists
-    const txExists = await pool.query("SELECT id FROM deposits WHERE transaction_id=$1", [transaction_id]);
+    await client.query("BEGIN");
+
+    // Check duplicate transaction
+    const txExists = await client.query(
+      "SELECT id FROM deposits WHERE transaction_id=$1",
+      [transaction_id]
+    );
+
     if (txExists.rows.length) {
+      await client.query("ROLLBACK");
       return res.status(400).json({ error: "Transaction ID already exists" });
     }
 
-    // Initialize bonus and turnover
     let bonus = 0;
     let turnover_required = 0;
-
-    // Apply promo code if provided
     let appliedPromo = "";
+
     if (promo_code) {
-      const promo = await pool.query(
+      const promo = await client.query(
         "SELECT * FROM promo_codes WHERE code=$1 AND active=true",
         [promo_code]
       );
 
       if (!promo.rows.length) {
+        await client.query("ROLLBACK");
         return res.status(400).json({ error: "Invalid or inactive promo code" });
       }
 
       appliedPromo = promo_code;
-      // bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
-      // turnover_required = bonus * parseFloat(promo.rows[0].turnover);
 
-      bonus = (amount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
-
-    const totalPlayable = amount + bonus;
- 
-    turnover_required =
-   totalPlayable * parseFloat(promo.rows[0].turnover);
+      bonus = (numericAmount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
+      const totalPlayable = numericAmount + bonus;
+      turnover_required = totalPlayable * parseFloat(promo.rows[0].turnover);
     }
 
-    const totalAmount = parseFloat(amount) + bonus;
+    const totalAmount = numericAmount + bonus;
 
-    // Insert deposit
-const result = await pool.query(
-  `INSERT INTO deposits 
-    (user_id, amount, sender_number, receiver_number, payment_gateway, transaction_id, promo_code, bonus_amount, turnover_required, status, external_payout_id) 
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending', $10) 
-   RETURNING id, user_id, amount, status, created_at, sender_number, receiver_number, payment_gateway, transaction_id, promo_code, bonus_amount, turnover_required, external_payout_id`,
-  [
-    user_id,
-    totalAmount,
-    sender_number,
-    receiver_number,
-    payment_gateway,
-    transaction_id,
-    appliedPromo,
-    bonus,
-    turnover_required,
-    null // external_payout_id initially null
-  ]
-);
+    const result = await client.query(
+      `INSERT INTO deposits 
+        (user_id, amount, sender_number, receiver_number, payment_gateway, transaction_id, promo_code, bonus_amount, turnover_required, status, external_payout_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',NULL)
+       RETURNING *`,
+      [
+        user_id,
+        totalAmount,
+        sender_number,
+        receiver_number,
+        payment_gateway,
+        transaction_id,
+        appliedPromo,
+        bonus,
+        turnover_required
+      ]
+    );
 
+    await client.query("COMMIT");
 
-    res.json({ message: "Deposit request submitted", deposit: result.rows[0] });
+    // Respond immediately
+    res.json({
+      message: "Deposit request submitted",
+      deposit: result.rows[0]
+    });
+
+    // 🔥 Auto-approve after delay
+    setTimeout(() => {
+      autoApproveDeposit(result.rows[0].id);
+    }, 10 * 1000);
+
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
+
 
 
 
@@ -296,10 +399,7 @@ router.patch("/:id/approve", async (req, res) => {
       });
     }
 
-    if (!confirm.success) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Deposit confirmation failed with external API" });
-    }
+
 
     // ---------------- INTERNAL UPDATES ----------------
     // Update deposit status to approved
