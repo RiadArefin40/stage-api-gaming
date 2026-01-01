@@ -92,7 +92,7 @@ if (!deposit.external_payout_id) {
 
     await client.query(
       `UPDATE users 
-       SET balance = balance + $1 
+       SET wallet = wallet + $1 
        WHERE id = $2`,
       [deposit.amount, deposit.user_id]
     );
