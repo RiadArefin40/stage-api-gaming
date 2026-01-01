@@ -4,6 +4,36 @@ import { generateUniqueReferralCode } from "../utils/referral.js";
 
 const router = express.Router();
 
+
+
+
+router.get("/headline", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM headline WHERE id = 1");
+    res.json(result.rows[0]); // return the single row
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch headline" });
+  }
+});
+
+// ---------------- UPDATE HEADLINE ----------------
+router.put("/headline", async (req, res) => {
+  const { title } = req.body;
+  if (!title) return res.status(400).json({ error: "Title is required" });
+
+  try {
+    const result = await pool.query(
+      `UPDATE headline SET title = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1 RETURNING *`,
+      [title]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update headline" });
+  }
+});
+
 // Create user
 router.post("/", async (req, res) => {
   const { name, phone, password, referred_by, wallet } = req.body;
