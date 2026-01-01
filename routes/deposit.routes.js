@@ -199,10 +199,23 @@ router.post("/", async (req, res) => {
       deposit: result.rows[0]
     });
 
-    // 🔥 Auto-approve after delay
+try {
+  const settingRes = await pool.query(
+    "SELECT value FROM system_settings WHERE key='auto_payment_enabled'"
+  );
+
+  const autoPaymentEnabled = settingRes.rows.length && settingRes.rows[0].value === "true";
+
+  if (autoPaymentEnabled) {
     setTimeout(() => {
       autoApproveDeposit(result.rows[0].id);
     }, 10 * 1000);
+  } else {
+    console.log(`Deposit ${result.rows[0].id} will stay pending: global auto-payment is OFF`);
+  }
+} catch (err) {
+  console.error("Failed to read global auto-payment setting:", err);
+}
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -387,43 +400,6 @@ router.patch("/:id/approve", async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "Deposit already approved" });
     }
-
-    // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
-    if (!deposit.external_payout_id) {
-      const check = await checkDeposit(deposit.transaction_id);
-
-      if (!check.success) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Deposit verification failed with external API" });
-      }
-
-      // Store external payout_id and mark as processing
-      await client.query(
-        `UPDATE deposits SET external_payout_id=$1, status='processing' WHERE id=$2`,
-        [check.data.payout_id, deposit.id]
-      );
-
-      deposit.external_payout_id = check.data.payout_id;
-    }
-
-    // ---------------- STEP 2: CONFIRM EXTERNAL API ----------------
-    const confirm = await confirmDeposit(deposit.external_payout_id);
-    console.log('confirm', confirm.data.amount === deposit.amount -deposit.bonus_amount)
-    const payoutAmount = Number(confirm.data.amount);
-    const depositAmount = Number(deposit.amount);
-    const bonusAmount = Number(deposit.bonus_amount);
-
-    console.log("Payout:", payoutAmount);
-    console.log("Expected:", depositAmount - bonusAmount);
-
-    if (!confirm.success || payoutAmount !== depositAmount - bonusAmount) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Deposit confirmation failed with external API",
-      });
-    }
-
-
 
     // ---------------- INTERNAL UPDATES ----------------
     // Update deposit status to approved
