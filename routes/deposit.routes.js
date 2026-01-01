@@ -28,32 +28,34 @@ const autoApproveDeposit = async (depositId) => {
     }
 
     // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
-    if (!deposit.external_payout_id) {
-      const check = await checkDeposit(deposit.transaction_id);
+ // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
+if (!deposit.external_payout_id) {
+  const check = await checkDeposit(deposit.transaction_id);
 
-      if (!check?.success || !check?.data?.payout_id) {
-        await client.query(
-          `UPDATE deposits
-           SET status='failed',
-               retry_count = retry_count + 1,
-               failure_reason = $1
-           WHERE id = $2`,
-          ["Verification failed", deposit.id]
-        );
+  if (!check?.success) {
+    await client.query(
+      `UPDATE deposits
+       SET status = 'processing',
+           retry_count = retry_count + 1,
+           failure_reason = $1
+       WHERE id = $2`,
+      [check.message || "External payout not ready", deposit.id]
+    );
 
-        await client.query("COMMIT");
-        return;
-      }
+    await client.query("COMMIT");
+    return;
+  }
 
-      await client.query(
-        `UPDATE deposits 
-         SET external_payout_id=$1, status='processing' 
-         WHERE id=$2`,
-        [check.data.payout_id, deposit.id]
-      );
+  await client.query(
+    `UPDATE deposits 
+     SET external_payout_id=$1, status='processing' 
+     WHERE id=$2`,
+    [check.data.payout_id, deposit.id]
+  );
 
-      deposit.external_payout_id = check.data.payout_id;
-    }
+  deposit.external_payout_id = check.data.payout_id;
+}
+
 
     // ---------------- STEP 2: CONFIRM PAYOUT ----------------
     const confirm = await confirmDeposit(deposit.external_payout_id);
