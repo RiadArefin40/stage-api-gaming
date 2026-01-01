@@ -24,7 +24,7 @@ export const checkDeposit = async (transaction_id) => {
   try {
     console.log("[DEBUG] Checking deposit for transaction_id:", transaction_id);
 
-    const payload = { transaction_id: '74P0I2DX' };
+    const payload = { transaction_id: 'CLF35NMKQH' };
     const hash = generatePayloadHash(payload);
 
 
@@ -60,7 +60,7 @@ export const confirmDeposit = async (payout_id) => {
     const hash = generatePayloadHash(payload);
 
     console.log("[DEBUG] Sending request to Confirm Deposit API...");
-    const response = await axios.post(
+    const response = await axiosInstance.post(
       `${API_BASE_URL}bot/confirm-payout`,
       payload,
       {

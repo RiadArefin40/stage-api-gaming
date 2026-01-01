@@ -281,6 +281,7 @@ router.patch("/:id/approve", async (req, res) => {
 
     // ---------------- STEP 2: CONFIRM EXTERNAL API ----------------
     const confirm = await confirmDeposit(deposit.external_payout_id);
+    console.log('confirm', confirm)
     if (!confirm.success) {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "Deposit confirmation failed with external API" });
