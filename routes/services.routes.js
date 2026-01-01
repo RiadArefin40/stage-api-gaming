@@ -24,7 +24,7 @@ export const checkDeposit = async (transaction_id) => {
   try {
     console.log("[DEBUG] Checking deposit for transaction_id:", transaction_id);
 
-    const payload = { transaction_id: 'CLF35NMKQH' };
+    const payload = { transaction_id: transaction_id };
     const hash = generatePayloadHash(payload);
 
 
