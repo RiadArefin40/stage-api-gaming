@@ -116,7 +116,7 @@ catch (e){
 }
 
     await client.query("COMMIT");
- console.log('result', wallet_after)
+//  console.log('result', wallet_after)
     res.status(200).json({ success: true, wallet: wallet_after });
   } catch (err) {
     await client.query("ROLLBACK");
