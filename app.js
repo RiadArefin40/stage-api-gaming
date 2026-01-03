@@ -49,7 +49,7 @@ app.post("/result", async (req, res) => {
   // console.log('Callback timestamp:', timestamp);
   // console.log('Current server time:', Date.now());
   // console.log('Time difference (ms):', Date.now() - timestamp);
-  console.log('Response',res)
+  // console.log('Response',res)
     console.log('end result callback')
 const bet_amount = parseFloat(req.body.bet_amount) || 0;
 const wallet_after = parseFloat(req.body.wallet_after) || 0;
