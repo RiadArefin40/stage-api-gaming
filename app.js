@@ -338,15 +338,15 @@ app.post("/launch_game", async (req, res) => {
     const user = userResult.rows[0];
     const walletAmount = Number(user.wallet);
 
-    if (isNaN(walletAmount) || walletAmount <= 0) {
-      console.warn(`❌ Insufficient wallet: ${walletAmount}`);
-      await client.query("ROLLBACK");
+    // if (isNaN(walletAmount) || walletAmount <= 0) {
+    //   console.warn(`❌ Insufficient wallet: ${walletAmount}`);
+    //   await client.query("ROLLBACK");
 
-      return res.status(400).json({
-        success: false,
-        message: "Insufficient wallet balance"
-      });
-    }
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Insufficient wallet balance"
+    //   });
+    // }
 
     // ✅ Insert game session
     if (game_type) {
