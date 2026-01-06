@@ -228,16 +228,21 @@ router.patch("/:id/reject", async (req, res) => {
 router.get("/", async (_, res) => {
   try {
     const result = await pool.query(`
-      SELECT w.*, u.name AS username 
-      FROM withdrawals w 
+      SELECT 
+        w.*,
+        u.name AS user_name
+      FROM withdrawals w
       JOIN users u ON u.id = w.user_id
       ORDER BY w.created_at DESC
     `);
+
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 // Get withdrawals for a specific user
 router.get("/:userId", async (req, res) => {
