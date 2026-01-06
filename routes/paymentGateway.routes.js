@@ -49,7 +49,22 @@ router.post("/widthraw", async (req, res) => {
       [enabled ? "true" : "false"]
     );
 
-    res.json({ success: true, auto_payment_enabled: enabled });
+    res.json({ success: true, widthraw: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/widthraw", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key='widthraw'"
+    );
+
+    const enabled = result.rows.length && result.rows[0].value === "true";
+
+    res.json({ success: true, widthraw: enabled });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
