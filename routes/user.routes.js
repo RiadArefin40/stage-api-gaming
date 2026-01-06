@@ -142,7 +142,7 @@ router.delete("/:id", async (req, res) => {
 // Update user
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, phone, role, wallet } = req.body;
+  const { name, phone, role, wallet , password} = req.body;
 
   try {
     // 1. Get existing user
@@ -183,11 +183,12 @@ router.put("/:id", async (req, res) => {
         name = $1,
         phone = $2,
         role = $3,
-        wallet = $4
-      WHERE id = $5
+        wallet = $4,
+        password = $5,
+      WHERE id = $6
       RETURNING id, name, phone, role, wallet, referral_code, referred_by
       `,
-      [name, phone, role, wallet, id]
+      [name, phone, role, wallet, id, password]
     );
 
     res.json({
