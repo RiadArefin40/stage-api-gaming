@@ -140,7 +140,7 @@ router.delete("/:id", async (req, res) => {
 
 
 // Update user
-import bcrypt from "bcrypt";
+
 
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
