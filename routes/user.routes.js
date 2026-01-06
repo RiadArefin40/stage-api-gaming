@@ -140,9 +140,11 @@ router.delete("/:id", async (req, res) => {
 
 
 // Update user
+import bcrypt from "bcrypt";
+
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, phone, role, wallet } = req.body;
+  const { name, phone, role, wallet, password } = req.body;
 
   try {
     // 1. Get existing user
@@ -157,7 +159,7 @@ router.put("/:id", async (req, res) => {
 
     const currentUser = existingUser.rows[0];
 
-    // 2. Only check duplicates if changed
+    // 2. Duplicate check if name/phone changed
     if (name !== currentUser.name || phone !== currentUser.phone) {
       const duplicateCheck = await pool.query(
         `
@@ -175,31 +177,42 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-    // 3. Update user
+    // 3. Build dynamic update query
+    const fields = ["name", "phone", "role", "wallet"];
+    const values = [name, phone, role, wallet];
+    let index = values.length + 1;
+
+    // 🔐 Update password ONLY for admin / agent
+    if ((role === "admin" || role === "agent") && password) {
+      const hashedPassword = password;
+      fields.push("password");
+      values.push(hashedPassword);
+    }
+
+    const setQuery = fields
+      .map((field, i) => `${field} = $${i + 1}`)
+      .join(", ");
+
     const result = await pool.query(
       `
       UPDATE users
-      SET 
-        name = $1,
-        phone = $2,
-        role = $3,
-        wallet = $4
-      WHERE id = $5
+      SET ${setQuery}
+      WHERE id = $${values.length + 1}
       RETURNING id, name, phone, role, wallet, referral_code, referred_by
       `,
-      [name, phone, role, wallet, id]
+      [...values, id]
     );
 
     res.json({
       message: "User updated successfully",
       user: result.rows[0],
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update user" });
   }
 });
+
 
 // Get user balance
 // Get user balance and turnover
