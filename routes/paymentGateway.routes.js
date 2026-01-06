@@ -35,7 +35,7 @@ router.post("/auto-payment", async (req, res) => {
 
 router.post("/widthraw", async (req, res) => {
   const { enabled } = req.body; // expects boolean true/false
-
+console.log("Received widthraw setting:", enabled);
   if (enabled === undefined) {
     return res.status(400).json({ success: false, error: "Missing 'enabled' field" });
   }
