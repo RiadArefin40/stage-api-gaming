@@ -32,6 +32,29 @@ router.post("/auto-payment", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+router.post("/widthraw", async (req, res) => {
+  const { enabled } = req.body; // expects boolean true/false
+
+  if (enabled === undefined) {
+    return res.status(400).json({ success: false, error: "Missing 'enabled' field" });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ('widthraw', $1, NOW())
+       ON CONFLICT (key)
+       DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [enabled ? "true" : "false"]
+    );
+
+    res.json({ success: true, auto_payment_enabled: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // GET /api/system-settings/auto-payment
 router.get("/auto-payment", async (req, res) => {
   try {
