@@ -44,16 +44,12 @@ app.use("/withdrawals", widthdrawRoutes);
 
 
 app.post("/result", async (req, res) => {
-  const { mobile, timestamp } = req.body;
-  console.log('Start Result Callback received:', req.body);
-  // console.log('Callback timestamp:', timestamp);
-  // console.log('Current server time:', Date.now());
-  // console.log('Time difference (ms):', Date.now() - timestamp);
-  // console.log('Response',res)
-    console.log('end result callback')
-const bet_amount = parseFloat(req.body.bet_amount) || 0;
-const wallet_after = parseFloat(req.body.wallet_after) || 0;
-const wallet_before = parseFloat(req.body.wallet_before) || 0;
+  const { mobile } = req.body;
+  console.log("🎮 Start Result Callback received:", req.body);
+
+  const bet_amount = parseFloat(req.body.bet_amount) || 0;
+  const wallet_after = parseFloat(req.body.wallet_after) || 0;
+  const wallet_before = parseFloat(req.body.wallet_before) || 0;
 
   if (!mobile) return res.status(400).json({ error: "Missing mobile" });
 
@@ -61,106 +57,90 @@ const wallet_before = parseFloat(req.body.wallet_before) || 0;
   try {
     await client.query("BEGIN");
 
-    // Case-insensitive user search
+    // Fetch user with lock
     const userResult = await client.query(
       "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
       [mobile]
     );
+
     if (!userResult.rows.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    const user = userResult.rows[0];
-    console.log('user',user)
-    // Update wallet
-    await client.query(
-      "UPDATE users SET wallet=$1 WHERE id=$2",
-      [wallet_after, user.id]
-    );
 
-    // Update turnover history asynchronously
+    const user = userResult.rows[0];
+    console.log("User found:", user);
+
+    // Update wallet immediately
+    await client.query("UPDATE users SET wallet=$1 WHERE id=$2", [wallet_after, user.id]);
+
+    // Fetch active turnover records
     const turnoverResult = await client.query(
-      `SELECT * FROM user_turnover_history WHERE user_id=$1 AND complete=false ORDER BY created_at DESC`,
+      `SELECT * FROM user_turnover_history 
+       WHERE user_id=$1 AND complete=false 
+       ORDER BY created_at DESC`,
       [user.id]
     );
 
+    const record = turnoverResult.rows.find(r => parseFloat(r.active_turnover_amount) > 0);
 
-try {
-  const record = turnoverResult.rows.find(
-    r => parseFloat(r.active_turnover_amount) > 0
-  );
+    if (record) {
+      let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
 
-  if (record) {
-    let newActiveAmount =
-      Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+      // Wallet check
+      if (wallet_before < 20) newActiveAmount = 0;
 
-    // Wallet check
-    if (wallet_before < 20) {
-      newActiveAmount = 0;
-    }
+      const originalAmount = parseFloat(record.active_turnover_amount);
+      const remainingPercentage = (newActiveAmount / originalAmount) * 100;
 
-    // If remaining turnover is <= 5% of original, apply delay
-    const originalAmount = parseFloat(record.active_turnover_amount);
-    const remainingPercentage = (newActiveAmount / originalAmount) * 100;
-
-    // Fetch turnover_delay from system_settings
-    const settingRes = await pool.query(
-      "SELECT value FROM system_settings WHERE key='turnover_delay'"
-    );
-    const turnoverDelayMinutes = settingRes.rows.length
-      ? parseInt(settingRes.rows[0].value, 10)
-      : 0; // default to 0 if not set
-
-if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
-  console.log(
-    `✅ Turnover for record ${record.id} is below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
-  );
-
-  // Schedule delayed update using pool.query (fresh client)
-  setTimeout(async () => {
-    try {
-      await pool.query(
-        `UPDATE user_turnover_history 
-         SET active_turnover_amount = 0, complete = true
-         WHERE id = $1`,
-        [record.id]
+      // Fetch turnover_delay from system_settings
+      const settingRes = await pool.query(
+        "SELECT value FROM system_settings WHERE key='turnover_delay'"
       );
-      console.log(`Delayed turnover update applied for record ${record.id}`);
-    } catch (err) {
-      console.error(`❌ Failed delayed turnover update for record ${record.id}:`, err);
+      const turnoverDelayMinutes = settingRes.rows.length
+        ? parseInt(settingRes.rows[0].value, 10)
+        : 0;
+
+      if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+        // Schedule delayed update safely
+        const delayUntil = new Date(Date.now() + turnoverDelayMinutes * 60 * 1000);
+
+        await client.query(
+          `UPDATE user_turnover_history 
+           SET active_turnover_amount=$1, delay_until=$2
+           WHERE id=$3`,
+          [newActiveAmount, delayUntil, record.id]
+        );
+
+        console.log(
+          `⏳ Turnover record ${record.id} is below 5%, will finalize after ${delayUntil}`
+        );
+      } else {
+        // Immediate update
+        await client.query(
+          `UPDATE user_turnover_history 
+           SET active_turnover_amount=$1, complete=$2
+           WHERE id=$3`,
+          [newActiveAmount, newActiveAmount === 0, record.id]
+        );
+
+        console.log(
+          `✅ Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+        );
+      }
     }
-  }, turnoverDelayMinutes * 60 * 1000); // convert minutes to ms
-} else {
-  // Immediate update
-  await client.query(
-    `UPDATE user_turnover_history 
-     SET active_turnover_amount = $1, complete = $2 
-     WHERE id = $3`,
-    [newActiveAmount, newActiveAmount === 0, record.id]
-  );
-
-  console.log(
-    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-  );
-}
-
-  }
-} catch (e) {
-  console.error("Error updating turnover:", e);
-}
-
 
     await client.query("COMMIT");
-//  console.log('result', wallet_after)
     res.status(200).json({ success: true, wallet: wallet_after });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Error processing callback:", err);
+    console.error("❌ Error processing callback:", err);
     res.status(500).json({ success: false });
   } finally {
     client.release();
   }
 });
+
 
 
 function createKey(keyString) {
@@ -450,6 +430,35 @@ app.post("/launch_game", async (req, res) => {
     console.log("🔌 DB connection released");
   }
 });
+
+
+
+const finalizeDelayedTurnovers = async () => {
+  try {
+    const now = new Date();
+    const delayedRecords = await pool.query(
+      `SELECT id FROM user_turnover_history
+       WHERE complete=false AND delay_until IS NOT NULL AND delay_until <= $1`,
+      [now]
+    );
+
+    for (const r of delayedRecords.rows) {
+      await pool.query(
+        `UPDATE user_turnover_history
+         SET active_turnover_amount=0, complete=true, delay_until=NULL
+         WHERE id=$1`,
+        [r.id]
+      );
+      console.log(`✅ Finalized delayed turnover for record ${r.id}`);
+    }
+  } catch (err) {
+    console.error("❌ Error finalizing delayed turnovers:", err);
+  }
+};
+
+// Run every 1 minute
+setInterval(finalizeDelayedTurnovers, 60 * 1000);
+
 
 app.get("/test", (_, res) => res.send("Server running"));
 
