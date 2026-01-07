@@ -89,7 +89,7 @@ app.post("/result", async (req, res) => {
 
       // Wallet check
       if (wallet_before < 20) newActiveAmount = 0;
-      console.log('active',newActiveAmount)
+
       const originalAmount = parseFloat(record.active_turnover_amount);
       const remainingPercentage = (newActiveAmount / originalAmount) * 100;
 
