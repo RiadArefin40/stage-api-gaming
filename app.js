@@ -57,7 +57,7 @@ app.post("/result", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Fetch user with lock
+    // Fetch user with row lock
     const userResult = await client.query(
       "SELECT id, wallet, turnover FROM users WHERE name ILIKE $1 FOR UPDATE",
       [mobile]
@@ -94,23 +94,26 @@ app.post("/result", async (req, res) => {
       const remainingPercentage = (newActiveAmount / originalAmount) * 100;
 
       // Fetch turnover_delay from system_settings
-      const settingRes = await pool.query(
+      const settingRes = await client.query(
         "SELECT value FROM system_settings WHERE key='turnover_delay'"
       );
+
       const turnoverDelayMinutes = settingRes.rows.length
         ? parseInt(settingRes.rows[0].value, 10)
-        : 0;
+        : 0; // default 0 if not set
 
       if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
         // ✅ Schedule delayed turnover in queue
         const scheduledAt = new Date(Date.now() + turnoverDelayMinutes * 60 * 1000);
-        await pool.query(
-          `INSERT INTO user_turnover_delay_queue (turnover_id, scheduled_at) VALUES ($1, $2)`,
+
+        await client.query(
+          `INSERT INTO user_turnover_delay_queue (turnover_id, scheduled_at)
+           VALUES ($1, $2)`,
           [record.id, scheduledAt]
         );
 
         console.log(
-          `⏳ Turnover record ${record.id} below 5%, scheduled for delayed completion at ${scheduledAt}`
+          `⏳ Turnover record ${record.id} below 5%, scheduled for delayed completion at ${scheduledAt} (delay: ${turnoverDelayMinutes} min)`
         );
       } else {
         // Immediate update
@@ -139,6 +142,7 @@ app.post("/result", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
@@ -455,7 +459,7 @@ setInterval(async () => {
   } catch (err) {
     console.error("❌ Failed to process delayed turnovers:", err);
   }
-}, 60 * 1000); // runs every minute
+}, 20 * 1000); // run every 1 minute
 
 app.get("/test", (_, res) => res.send("Server running"));
 
