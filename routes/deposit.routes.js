@@ -709,20 +709,31 @@ router.get("/admin/notifications", async (req, res) => {
   }
 });
 // PATCH /admin/notifications/:id/read
-router.patch("/admin/notifications/:id/read", async (req, res) => {
-  const { id } = req.params;
+// PATCH /admin/notifications/:idOrRef/read
+router.patch("/admin/notifications/:idOrRef/read", async (req, res) => {
+  const { idOrRef } = req.params;
 
   try {
-    await pool.query(
-      "UPDATE admin_notifications SET read=true WHERE id=$1",
-      [id]
+    // Try updating by ID first
+    const result = await pool.query(
+      "UPDATE admin_notifications SET read=true WHERE id=$1 OR reference_id=$1 RETURNING *",
+      [idOrRef]
     );
-    res.json({ message: "Notification marked as read" });
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    res.json({
+      message: "Notification marked as read",
+      updated: result.rows,
+    });
   } catch (err) {
     console.error("Failed to mark notification as read:", err);
     res.status(500).json({ error: "Failed to update notification" });
   }
 });
+
 
 
 export default router;
