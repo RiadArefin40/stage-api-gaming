@@ -85,7 +85,7 @@ app.post("/result", async (req, res) => {
     const record = turnoverResult.rows.find(r => parseFloat(r.active_turnover_amount) > 0);
 
     if (record) {
-      let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+      let newActiveAmount = Math.max(0, parseFloat(record.active_turnover_amount));
 
       // Wallet check
       if (wallet_before < 20) newActiveAmount = 0;
@@ -103,7 +103,7 @@ app.post("/result", async (req, res) => {
         : 0; // default 0 if not set
       console.log('turnoverDelayMinutes',turnoverDelayMinutes,remainingPercentage,newActiveAmount)
  // If remaining turnover is <= 5% of original
-if (remainingPercentage <= 10 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+if (remainingPercentage <= 50 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
     console.log('hit delay')
   await scheduleTurnoverDelay(record.id, turnoverDelayMinutes);
 } else {
