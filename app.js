@@ -102,22 +102,25 @@ app.post("/result", async (req, res) => {
         : 0;
 
       if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+        // ✅ Save record ID for delayed update
+        const delayedRecordId = record.id;
+
         console.log(
-          `⏳ Turnover record ${record.id} below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
+          `⏳ Turnover record ${delayedRecordId} below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
         );
 
-        // Use fresh query outside transaction
+        // Use pool.query (not client) for delayed update
         setTimeout(async () => {
           try {
             await pool.query(
               `UPDATE user_turnover_history 
                SET active_turnover_amount=0, complete=true
                WHERE id=$1`,
-              [record.id]
+              [delayedRecordId]
             );
-            console.log(`✅ Delayed turnover update applied for record ${record.id}`);
+            console.log(`✅ Delayed turnover update applied for record ${delayedRecordId}`);
           } catch (err) {
-            console.error(`❌ Failed delayed turnover update for record ${record.id}:`, err);
+            console.error(`❌ Failed delayed turnover update for record ${delayedRecordId}:`, err);
           }
         }, turnoverDelayMinutes * 60 * 1000); // minutes → ms
       } else {
@@ -147,6 +150,7 @@ app.post("/result", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
