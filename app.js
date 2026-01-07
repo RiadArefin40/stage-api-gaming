@@ -102,19 +102,24 @@ app.post("/result", async (req, res) => {
         : 0;
 
       if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
-        // Schedule delayed update safely
-        const delayUntil = new Date(Date.now() + turnoverDelayMinutes * 60 * 1000);
-
-        await client.query(
-          `UPDATE user_turnover_history 
-           SET active_turnover_amount=$1, delay_until=$2
-           WHERE id=$3`,
-          [newActiveAmount, delayUntil, record.id]
-        );
-
         console.log(
-          `⏳ Turnover record ${record.id} is below 5%, will finalize after ${delayUntil}`
+          `⏳ Turnover record ${record.id} below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
         );
+
+        // Use fresh query outside transaction
+        setTimeout(async () => {
+          try {
+            await pool.query(
+              `UPDATE user_turnover_history 
+               SET active_turnover_amount=0, complete=true
+               WHERE id=$1`,
+              [record.id]
+            );
+            console.log(`✅ Delayed turnover update applied for record ${record.id}`);
+          } catch (err) {
+            console.error(`❌ Failed delayed turnover update for record ${record.id}:`, err);
+          }
+        }, turnoverDelayMinutes * 60 * 1000); // minutes → ms
       } else {
         // Immediate update
         await client.query(
@@ -131,6 +136,8 @@ app.post("/result", async (req, res) => {
     }
 
     await client.query("COMMIT");
+
+    // Respond immediately
     res.status(200).json({ success: true, wallet: wallet_after });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -430,35 +437,6 @@ app.post("/launch_game", async (req, res) => {
     console.log("🔌 DB connection released");
   }
 });
-
-
-
-const finalizeDelayedTurnovers = async () => {
-  try {
-    const now = new Date();
-    const delayedRecords = await pool.query(
-      `SELECT id FROM user_turnover_history
-       WHERE complete=false AND delay_until IS NOT NULL AND delay_until <= $1`,
-      [now]
-    );
-
-    for (const r of delayedRecords.rows) {
-      await pool.query(
-        `UPDATE user_turnover_history
-         SET active_turnover_amount=0, complete=true, delay_until=NULL
-         WHERE id=$1`,
-        [r.id]
-      );
-      console.log(`✅ Finalized delayed turnover for record ${r.id}`);
-    }
-  } catch (err) {
-    console.error("❌ Error finalizing delayed turnovers:", err);
-  }
-};
-
-// Run every 1 minute
-setInterval(finalizeDelayedTurnovers, 60 * 1000);
-
 
 app.get("/test", (_, res) => res.send("Server running"));
 
