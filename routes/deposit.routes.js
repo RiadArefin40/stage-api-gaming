@@ -229,15 +229,23 @@ try {
 
 
 
-
 router.get("/", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM deposits ORDER BY created_at DESC");
+    const result = await pool.query(`
+      SELECT 
+        d.*,
+        u.name AS user_name
+      FROM deposits d
+      JOIN users u ON u.id = d.user_id
+      ORDER BY d.created_at DESC
+    `);
+
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // GET /api/transactions/:userId
 router.get("/:userId", async (req, res) => {

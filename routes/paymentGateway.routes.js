@@ -32,6 +32,44 @@ router.post("/auto-payment", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+router.post("/widthraw", async (req, res) => {
+  const { enabled } = req.body; // expects boolean true/false
+console.log("Received widthraw setting:", enabled);
+  if (enabled === undefined) {
+    return res.status(400).json({ success: false, error: "Missing 'enabled' field" });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ('widthraw', $1, NOW())
+       ON CONFLICT (key)
+       DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [enabled ? "true" : "false"]
+    );
+
+    res.json({ success: true, widthraw: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/widthraw", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key='widthraw'"
+    );
+
+    const enabled = result.rows.length && result.rows[0].value === "true";
+
+    res.json({ success: true, widthraw: enabled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // GET /api/system-settings/auto-payment
 router.get("/auto-payment", async (req, res) => {
   try {
