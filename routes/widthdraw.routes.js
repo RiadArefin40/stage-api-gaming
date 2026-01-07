@@ -334,6 +334,56 @@ router.get("/admin/withdraw_notifications", async (req, res) => {
   }
 });
 
+// Update turnover delay in minutes
+router.patch("/system/settings/turnover-delay", async (req, res) => {
+  const { value } = req.body;
+
+  // Validate input
+  const minutes = parseInt(value, 10);
+  if (isNaN(minutes) || minutes < 0) {
+    return res.status(400).json({ error: "Invalid turnover delay value" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO system_settings (key, value, updated_at)
+      VALUES ('turnover_delay', $1, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = $1, updated_at = NOW()
+      RETURNING *
+      `,
+      [minutes]
+    );
+
+    res.json({
+      message: "Turnover delay updated successfully",
+      setting: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Failed to update turnover delay:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+// Get current turnover delay in minutes
+router.get("/system/settings/turnover-delay", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key='turnover_delay'"
+    );
+
+    const delay = result.rows.length ? parseInt(result.rows[0].value, 10) : 0;
+
+    res.json({
+      turnover_delay: delay,
+    });
+  } catch (err) {
+    console.error("Failed to fetch turnover delay:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 
 
 export default router;
