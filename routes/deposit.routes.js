@@ -113,6 +113,140 @@ if (!deposit.external_payout_id) {
 
 
 // Create deposit request
+// router.post("/", async (req, res) => {
+//   const {
+//     user_id,
+//     amount,
+//     sender_number,
+//     receiver_number,
+//     payment_gateway,
+//     transaction_id,
+//     promo_code
+//   } = req.body;
+
+//   if (!user_id || !amount || !sender_number || !receiver_number || !payment_gateway || !transaction_id) {
+//     return res.status(400).json({ error: "Missing required fields" });
+//   }
+
+//   const numericAmount = Number(amount);
+//   if (isNaN(numericAmount) || numericAmount <= 0) {
+//     return res.status(400).json({ error: "Invalid amount" });
+//   }
+
+//   const client = await pool.connect();
+
+//   try {
+//     await client.query("BEGIN");
+
+//     // Check duplicate transaction
+//     const txExists = await client.query(
+//       "SELECT id FROM deposits WHERE transaction_id=$1",
+//       [transaction_id]
+//     );
+
+//     if (txExists.rows.length) {
+//       await client.query("ROLLBACK");
+//       return res.status(400).json({ error: "Transaction ID already exists" });
+//     }
+
+//     let bonus = 0;
+//     let turnover_required = 0;
+//     let appliedPromo = "";
+
+//     if (promo_code) {
+//       const promo = await client.query(
+//         "SELECT * FROM promo_codes WHERE code=$1 AND active=true",
+//         [promo_code]
+//       );
+
+//       if (!promo.rows.length) {
+//         await client.query("ROLLBACK");
+//         return res.status(400).json({ error: "Invalid or inactive promo code" });
+//       }
+
+//       appliedPromo = promo_code;
+
+//       bonus = (numericAmount * parseFloat(promo.rows[0].deposit_bonus)) / 100;
+//       const totalPlayable = numericAmount + bonus;
+//       turnover_required = totalPlayable * parseFloat(promo.rows[0].turnover);
+//     }
+
+//     const totalAmount = numericAmount + bonus;
+
+//     const result = await client.query(
+//       `INSERT INTO deposits 
+//         (user_id, amount, sender_number, receiver_number, payment_gateway, transaction_id, promo_code, bonus_amount, turnover_required, status, external_payout_id)
+//        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',NULL)
+//        RETURNING *`,
+//       [
+//         user_id,
+//         totalAmount,
+//         sender_number,
+//         receiver_number,
+//         payment_gateway,
+//         transaction_id,
+//         appliedPromo,
+//         bonus,
+//         turnover_required
+//       ]
+//     );
+
+//     await client.query("COMMIT");
+
+//     // Non-blocking admin notification
+// // Non-blocking admin notification
+// (async () => {
+//   try {
+//     const deposit = result.rows[0]; // ✅ get the inserted deposit
+//     const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
+
+//     await pool.query(
+//       `INSERT INTO admin_notifications (type, reference_id, message)
+//       VALUES ($1, $2, $3)`,
+//       ['deposit_request', deposit.id, notificationMessage]
+//     );
+
+//     console.log(`✅ Admin notified for deposit ${deposit.id}`);
+//   } catch (err) {
+//     console.error(`❌ Failed to create admin notification:`, err.message);
+//   }
+// })();
+
+
+
+//     // Respond immediately
+//     res.json({
+//       message: "Deposit request submitted",
+//       deposit: result.rows[0]
+//     });
+
+// try {
+//   const settingRes = await pool.query(
+//     "SELECT value FROM system_settings WHERE key='auto_payment_enabled'"
+//   );
+
+//   const autoPaymentEnabled = settingRes.rows.length && settingRes.rows[0].value === "true";
+
+//   if (autoPaymentEnabled) {
+//     setTimeout(() => {
+//       autoApproveDeposit(result.rows[0].id);
+//     }, 10 * 1000);
+//   } else {
+//     console.log(`Deposit ${result.rows[0].id} will stay pending: global auto-payment is OFF`);
+//   }
+// } catch (err) {
+//   console.error("Failed to read global auto-payment setting:", err);
+// }
+
+//   } catch (err) {
+//     await client.query("ROLLBACK");
+//     console.error(err);
+//     res.status(500).json({ error: err.message });
+//   } finally {
+//     client.release();
+//   }
+// });
+
 router.post("/", async (req, res) => {
   const {
     user_id,
@@ -193,50 +327,55 @@ router.post("/", async (req, res) => {
 
     await client.query("COMMIT");
 
-    // Non-blocking admin notification
-// Non-blocking admin notification
-(async () => {
-  try {
-    const deposit = result.rows[0]; // ✅ get the inserted deposit
-    const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
+    // Get the inserted deposit
+    const deposit = result.rows[0];
+    console.log("💰 Deposit inserted:", deposit);
 
-    await pool.query(
-      `INSERT INTO admin_notifications (type, reference_id, message)
-      VALUES ($1, $2, $3)`,
-      ['deposit_request', deposit.id, notificationMessage]
-    );
+    // --- Admin notification (non-blocking) ---
+    const notifyAdmin = async () => {
+      try {
+        const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
 
-    console.log(`✅ Admin notified for deposit ${deposit.id}`);
-  } catch (err) {
-    console.error(`❌ Failed to create admin notification:`, err.message);
-  }
-})();
+        const notifRes = await pool.query(
+          `INSERT INTO admin_notifications (type, reference_id, message)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          ['deposit_request', deposit.id, notificationMessage]
+        );
 
+        console.log(`✅ Admin notification created:`, notifRes.rows[0]);
+      } catch (err) {
+        console.error(`❌ Failed to create admin notification for deposit ${deposit.id}:`, err.message);
+      }
+    };
 
+    // Fire notification without blocking response
+    notifyAdmin();
 
-    // Respond immediately
+    // Respond immediately to user
     res.json({
       message: "Deposit request submitted",
-      deposit: result.rows[0]
+      deposit: deposit
     });
 
-try {
-  const settingRes = await pool.query(
-    "SELECT value FROM system_settings WHERE key='auto_payment_enabled'"
-  );
+    // --- Auto-approve logic ---
+    try {
+      const settingRes = await pool.query(
+        "SELECT value FROM system_settings WHERE key='auto_payment_enabled'"
+      );
 
-  const autoPaymentEnabled = settingRes.rows.length && settingRes.rows[0].value === "true";
+      const autoPaymentEnabled = settingRes.rows.length && settingRes.rows[0].value === "true";
 
-  if (autoPaymentEnabled) {
-    setTimeout(() => {
-      autoApproveDeposit(result.rows[0].id);
-    }, 10 * 1000);
-  } else {
-    console.log(`Deposit ${result.rows[0].id} will stay pending: global auto-payment is OFF`);
-  }
-} catch (err) {
-  console.error("Failed to read global auto-payment setting:", err);
-}
+      if (autoPaymentEnabled) {
+        setTimeout(() => {
+          autoApproveDeposit(deposit.id);
+        }, 10 * 1000);
+      } else {
+        console.log(`Deposit ${deposit.id} will stay pending: global auto-payment is OFF`);
+      }
+    } catch (err) {
+      console.error("Failed to read global auto-payment setting:", err);
+    }
 
   } catch (err) {
     await client.query("ROLLBACK");
@@ -246,6 +385,7 @@ try {
     client.release();
   }
 });
+
 
 
 
