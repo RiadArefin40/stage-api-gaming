@@ -111,38 +111,39 @@ try {
       ? parseInt(settingRes.rows[0].value, 10)
       : 0; // default to 0 if not set
 
-    if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
-      console.log(
-        `✅ Turnover for record ${record.id} is below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
-      );
+if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+  console.log(
+    `✅ Turnover for record ${record.id} is below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
+  );
 
-      // Schedule delayed update
-      setTimeout(async () => {
-        try {
-          await client.query(
-            `UPDATE user_turnover_history 
-             SET active_turnover_amount = 0, complete = true
-             WHERE id = $1`,
-            [record.id]
-          );
-          console.log(`Delayed turnover update applied for record ${record.id}`);
-        } catch (err) {
-          console.error(`Failed delayed turnover update for record ${record.id}:`, err);
-        }
-      }, turnoverDelayMinutes * 60 * 1000); // convert minutes to ms
-    } else {
-      // Immediate update
-      await client.query(
+  // Schedule delayed update using pool.query (fresh client)
+  setTimeout(async () => {
+    try {
+      await pool.query(
         `UPDATE user_turnover_history 
-         SET active_turnover_amount = $1, complete = $2 
-         WHERE id = $3`,
-        [newActiveAmount, newActiveAmount === 0, record.id]
+         SET active_turnover_amount = 0, complete = true
+         WHERE id = $1`,
+        [record.id]
       );
-
-      console.log(
-        `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-      );
+      console.log(`Delayed turnover update applied for record ${record.id}`);
+    } catch (err) {
+      console.error(`❌ Failed delayed turnover update for record ${record.id}:`, err);
     }
+  }, turnoverDelayMinutes * 60 * 1000); // convert minutes to ms
+} else {
+  // Immediate update
+  await client.query(
+    `UPDATE user_turnover_history 
+     SET active_turnover_amount = $1, complete = $2 
+     WHERE id = $3`,
+    [newActiveAmount, newActiveAmount === 0, record.id]
+  );
+
+  console.log(
+    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+  );
+}
+
   }
 } catch (e) {
   console.error("Error updating turnover:", e);
