@@ -101,9 +101,10 @@ app.post("/result", async (req, res) => {
       const turnoverDelayMinutes = settingRes.rows.length
         ? parseInt(settingRes.rows[0].value, 10)
         : 0; // default 0 if not set
-
+      console.log('turnoverDelayMinutes',turnoverDelayMinutes)
  // If remaining turnover is <= 5% of original
-if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+if (remainingPercentage <= 50 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+    console.log('hit delay')
   await scheduleTurnoverDelay(record.id, turnoverDelayMinutes);
 } else {
   // Immediate update
