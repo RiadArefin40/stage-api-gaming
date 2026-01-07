@@ -193,6 +193,24 @@ router.post("/", async (req, res) => {
 
     await client.query("COMMIT");
 
+    // Non-blocking admin notification
+    (async () => {
+      try {
+        const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
+
+        await pool.query(
+          `INSERT INTO admin_notifications (type, reference_id, message)
+          VALUES ($1, $2, $3)`,
+          ['deposit_request', deposit.id, notificationMessage]
+        );
+
+        console.log(`✅ Admin notified for deposit ${deposit.id}`);
+      } catch (err) {
+        console.error(`❌ Failed to create admin notification:`, err.message);
+      }
+    })();
+
+
     // Respond immediately
     res.json({
       message: "Deposit request submitted",
@@ -518,6 +536,48 @@ router.patch("/:id/reject", async (req, res) => {
     res.json({ message: "Deposit rejected", deposit: updatedDepositResult.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+// GET /admin/notifications?unread=true
+router.get("/admin/notifications", async (req, res) => {
+  const { unread } = req.query;
+
+  let query = "SELECT * FROM admin_notifications";
+  const params = [];
+
+  if (unread === "true") {
+    query += " WHERE read = $1 ORDER BY created_at DESC";
+    params.push(false);
+  } else {
+    query += " ORDER BY created_at DESC";
+  }
+
+  try {
+    const result = await pool.query(query, params);
+    res.json({ notifications: result.rows });
+  } catch (err) {
+    console.error("Failed to fetch admin notifications:", err);
+    res.status(500).json({ error: "Failed to fetch notifications" });
+  }
+});
+// PATCH /admin/notifications/:id/read
+router.patch("/admin/notifications/:id/read", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query(
+      "UPDATE admin_notifications SET read=true WHERE id=$1",
+      [id]
+    );
+    res.json({ message: "Notification marked as read" });
+  } catch (err) {
+    console.error("Failed to mark notification as read:", err);
+    res.status(500).json({ error: "Failed to update notification" });
   }
 });
 
