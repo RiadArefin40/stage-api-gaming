@@ -194,21 +194,24 @@ router.post("/", async (req, res) => {
     await client.query("COMMIT");
 
     // Non-blocking admin notification
-    (async () => {
-      try {
-        const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
+// Non-blocking admin notification
+(async () => {
+  try {
+    const deposit = result.rows[0]; // ✅ get the inserted deposit
+    const notificationMessage = `User ${deposit.user_id} created a deposit request of ${deposit.amount}`;
 
-        await pool.query(
-          `INSERT INTO admin_notifications (type, reference_id, message)
-          VALUES ($1, $2, $3)`,
-          ['deposit_request', deposit.id, notificationMessage]
-        );
+    await pool.query(
+      `INSERT INTO admin_notifications (type, reference_id, message)
+      VALUES ($1, $2, $3)`,
+      ['deposit_request', deposit.id, notificationMessage]
+    );
 
-        console.log(`✅ Admin notified for deposit ${deposit.id}`);
-      } catch (err) {
-        console.error(`❌ Failed to create admin notification:`, err.message);
-      }
-    })();
+    console.log(`✅ Admin notified for deposit ${deposit.id}`);
+  } catch (err) {
+    console.error(`❌ Failed to create admin notification:`, err.message);
+  }
+})();
+
 
 
     // Respond immediately
