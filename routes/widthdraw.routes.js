@@ -282,4 +282,54 @@ router.get("/:userId", async (req, res) => {
 });
 
 
+// PATCH /admin/withdraw_notifications/:idOrRef/read
+router.patch("/admin/withdraw_notifications/:idOrRef/read", async (req, res) => {
+  const { idOrRef } = req.params;
+
+  try {
+    const result = await pool.query(
+      "UPDATE withdraw_notifications SET read=true WHERE id=$1 OR reference_id=$1 RETURNING *",
+      [idOrRef]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    res.json({
+      message: "Withdrawal notification marked as read",
+      updated: result.rows,
+    });
+  } catch (err) {
+    console.error("Failed to mark withdrawal notification as read:", err);
+    res.status(500).json({ error: "Failed to update notification" });
+  }
+});
+// GET /admin/withdraw_notifications
+router.get("/admin/withdraw_notifications", async (req, res) => {
+  const { unread } = req.query; // optional: unread=true
+
+  try {
+    let query = "SELECT * FROM withdraw_notifications";
+    const params = [];
+
+    if (unread === "true") {
+      query += " WHERE read = false";
+    }
+
+    query += " ORDER BY created_at DESC";
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      notifications: result.rows,
+    });
+  } catch (err) {
+    console.error("Failed to fetch withdrawal notifications:", err);
+    res.status(500).json({ error: "Failed to fetch notifications" });
+  }
+});
+
+
+
 export default router;
