@@ -103,7 +103,7 @@ app.post("/result", async (req, res) => {
         : 0; // default 0 if not set
       console.log('turnoverDelayMinutes',turnoverDelayMinutes,remainingPercentage,newActiveAmount)
  // If remaining turnover is <= 5% of original
-if (remainingPercentage <= 95 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+if (remainingPercentage <= 10 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
     console.log('hit delay')
   await scheduleTurnoverDelay(record.id, turnoverDelayMinutes);
 } else {
