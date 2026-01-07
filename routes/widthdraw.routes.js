@@ -74,21 +74,25 @@ router.post("/", async (req, res) => {
       [withdrawAmount, user_id]
     );
 // Non-blocking notification
+// Non-blocking notification
 (async () => {
   try {
-    const notificationMessage = `User ${withdrawalResult.rows[0].user_id} requested a withdrawal of ${withdrawalResult.rows[0].amount}`;
+    const withdrawal = result.rows[0]; // use the correct variable
+
+    const notificationMessage = `User ${withdrawal.user_id} requested a withdrawal of ${withdrawal.amount}`;
 
     await pool.query(
       `INSERT INTO withdraw_notifications (type, reference_id, message)
        VALUES ($1, $2, $3)`,
-      ['withdraw_request', withdrawalResult.rows[0].id, notificationMessage]
+      ['withdraw_request', withdrawal.id, notificationMessage]
     );
 
-    console.log(`✅ Admin notified for withdrawal ${withdrawalResult.rows[0].id}`);
+    console.log(`✅ Admin notified for withdrawal ${withdrawal.id}`);
   } catch (err) {
     console.error(`❌ Failed to create withdraw notification:`, err.message);
   }
 })();
+
     res.json({
       message: "Withdrawal request submitted successfully",
       withdrawal: result.rows[0],
