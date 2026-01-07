@@ -85,35 +85,69 @@ const wallet_before = parseFloat(req.body.wallet_before) || 0;
     );
 
 
-try{
+try {
   const record = turnoverResult.rows.find(
-  r => parseFloat(r.active_turnover_amount) > 0
-);
+    r => parseFloat(r.active_turnover_amount) > 0
+  );
 
-if (record) {
-  let newActiveAmount =
-    Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
+  if (record) {
+    let newActiveAmount =
+      Math.max(0, parseFloat(record.active_turnover_amount) - bet_amount);
 
-  if (wallet_before < 20) {
-    newActiveAmount = 0;
+    // Wallet check
+    if (wallet_before < 20) {
+      newActiveAmount = 0;
+    }
+
+    // If remaining turnover is <= 5% of original, apply delay
+    const originalAmount = parseFloat(record.active_turnover_amount);
+    const remainingPercentage = (newActiveAmount / originalAmount) * 100;
+
+    // Fetch turnover_delay from system_settings
+    const settingRes = await pool.query(
+      "SELECT value FROM system_settings WHERE key='turnover_delay'"
+    );
+    const turnoverDelayMinutes = settingRes.rows.length
+      ? parseInt(settingRes.rows[0].value, 10)
+      : 0; // default to 0 if not set
+
+    if (remainingPercentage <= 5 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
+      console.log(
+        `✅ Turnover for record ${record.id} is below 5%, delaying final update by ${turnoverDelayMinutes} minutes`
+      );
+
+      // Schedule delayed update
+      setTimeout(async () => {
+        try {
+          await client.query(
+            `UPDATE user_turnover_history 
+             SET active_turnover_amount = 0, complete = true
+             WHERE id = $1`,
+            [record.id]
+          );
+          console.log(`Delayed turnover update applied for record ${record.id}`);
+        } catch (err) {
+          console.error(`Failed delayed turnover update for record ${record.id}:`, err);
+        }
+      }, turnoverDelayMinutes * 60 * 1000); // convert minutes to ms
+    } else {
+      // Immediate update
+      await client.query(
+        `UPDATE user_turnover_history 
+         SET active_turnover_amount = $1, complete = $2 
+         WHERE id = $3`,
+        [newActiveAmount, newActiveAmount === 0, record.id]
+      );
+
+      console.log(
+        `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
+      );
+    }
   }
-
-  await client.query(
-    `UPDATE user_turnover_history 
-     SET active_turnover_amount = $1, complete = $2 
-     WHERE id = $3`,
-    [newActiveAmount, newActiveAmount == 0, record.id]
-  );
-
-  console.log(
-    `Updated turnover record ${record.id}: active_turnover_amount=${newActiveAmount}, complete=${newActiveAmount === 0}`
-  );
+} catch (e) {
+  console.error("Error updating turnover:", e);
 }
 
-}
-catch (e){
- console.log(e)
-}
 
     await client.query("COMMIT");
 //  console.log('result', wallet_after)
