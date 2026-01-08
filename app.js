@@ -78,7 +78,7 @@ app.post("/result", async (req, res) => {
     const turnoverResult = await client.query(
       `SELECT * FROM user_turnover_history 
        WHERE user_id=$1 AND complete=false 
-       ORDER BY created_at DESC`,
+       ORDER BY started_at DESC`,
       [user.id]
     );
 
