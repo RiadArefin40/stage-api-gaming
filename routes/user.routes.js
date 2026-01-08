@@ -149,6 +149,40 @@ router.get("/:referral_code/referrals", async (req, res) => {
   }
 });
 
+// POST /api/referral/claim/:referralId
+router.post("/claim/:referralId", async (req, res) => {
+  const { referralId } = req.params;
+
+  try {
+    // 1️⃣ Get the bonus record
+    const bonusRes = await pool.query(
+      "SELECT * FROM referral_bonuses WHERE id=$1 AND is_claimed=false",
+      [referralId]
+    );
+    const bonus = bonusRes.rows[0];
+
+    if (!bonus) return res.status(404).json({ error: "Bonus not found or already claimed" });
+
+    // 2️⃣ Get the user
+    const userRes = await pool.query("SELECT wallet FROM users WHERE id=$1", [bonus.user_id]);
+    const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // 3️⃣ Update user's wallet
+    const newWallet = parseFloat(user.wallet) + parseFloat(bonus.amount);
+    await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newWallet, bonus.user_id]);
+
+    // 4️⃣ Mark bonus as claimed
+    await pool.query("UPDATE referral_bonuses SET is_claimed=true, updated_at=NOW() WHERE id=$1", [referralId]);
+
+    res.json({ success: true, newWallet });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 
 
 router.delete("/:id", async (req, res) => {
