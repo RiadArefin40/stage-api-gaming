@@ -156,7 +156,7 @@ router.post("/claim/:referralId", async (req, res) => {
   try {
     // 1️⃣ Get the bonus record
     const bonusRes = await pool.query(
-      "SELECT * FROM referral_bonuses WHERE id=$1 AND is_claimed=false",
+      "SELECT * FROM referral_bonuses WHERE user_id=$1 AND is_claimed=false",
       [referralId]
     );
     const bonus = bonusRes.rows[0];
