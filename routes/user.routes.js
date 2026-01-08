@@ -152,13 +152,13 @@ router.post("/", async (req, res) => {
       // Insert bonus for new user
       await pool.query(
         "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
-        [newUser.id, ownerId, setting.referred_bonus]
+        [newUser.id, newUser.id, setting.referred_bonus]
       );
 
       // Insert bonus for owner
       await pool.query(
         "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
-        [ownerId, ownerId, setting.owner_bonus]
+        [newUser.id, ownerId, setting.owner_bonus]
       );
     }
 
