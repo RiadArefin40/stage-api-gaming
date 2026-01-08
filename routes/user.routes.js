@@ -153,7 +153,7 @@ router.post("/", async (req, res) => {
 
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [setting.referred_bonus, newUser.id]);
     // Notification
-    await client.query(
+    await pool.query(
       `INSERT INTO notifications (user_id, title, message, type, is_read)
        VALUES ($1, $2, $3, $4, false)`,
       [newUser.id, "Referral Bonus", `You got ৳${deposit.amount} referral bonus using the valid referral code.`, "success"]
