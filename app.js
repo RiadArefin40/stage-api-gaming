@@ -78,7 +78,7 @@ app.post("/result", async (req, res) => {
     const turnoverResult = await client.query(
       `SELECT * FROM user_turnover_history 
        WHERE user_id=$1 AND complete=false 
-       ORDER BY started_at DESC`,
+       ORDER BY created_at DESC`,
       [user.id]
     );
 
@@ -130,7 +130,7 @@ if (newActiveAmount <= 42 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
   `SELECT game_type
    FROM active_game_sessions
    WHERE user_id=$1
-   ORDER BY created_at DESC
+   ORDER BY started_at DESC
    LIMIT 1`,
   [user.id]
 );
