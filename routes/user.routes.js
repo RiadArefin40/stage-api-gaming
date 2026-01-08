@@ -150,10 +150,10 @@ router.post("/", async (req, res) => {
       const setting = settingRes.rows[0] || { referred_bonus: 100, owner_bonus: 150 };
 
       // Insert bonus for new user
-      await pool.query(
-        "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
-        [newUser.id, newUser.id, setting.referred_bonus]
-      );
+      // await pool.query(
+      //   "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
+      //   [newUser.id, newUser.id, setting.referred_bonus]
+      // );
 
       // Insert bonus for owner
       await pool.query(
@@ -270,7 +270,12 @@ router.post("/:bonusId/claim", async (req, res) => {
     const newWallet = parseFloat(user.wallet) + parseFloat(bonus.amount);
     const newOwnerWallet = parseFloat(owner.wallet) + parseFloat(bonus.amount);
 
-    await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newWallet, bonus.user_id]);
+          const settingRes = await pool.query(
+        "SELECT referred_bonus, owner_bonus FROM referral_settings LIMIT 1"
+      );
+      const setting = settingRes.rows[0] || { referred_bonus: 100, owner_bonus: 150 };
+
+    await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [setting.referred_bonus, bonus.user_id]);
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newOwnerWallet, bonus.owner_id]);
 
     // 5️⃣ Mark bonus as claimed
