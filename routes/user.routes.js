@@ -672,6 +672,22 @@ router.post("/referral-setting", async (req, res) => {
   }
 });
 
+router.get("/userbet/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "SELECT * FROM user_bets WHERE user_id=$1",
+      [user_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 
 export default router;
