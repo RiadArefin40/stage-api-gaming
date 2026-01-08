@@ -158,6 +158,12 @@ router.post("/", async (req, res) => {
        VALUES ($1, $2, $3, $4, false)`,
       [newUser.id, "Referral Bonus", `You got ৳${setting.referred_bonus} referral bonus using the valid referral code.`, "success"]
     );
+
+        await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, is_read)
+       VALUES ($1, $2, $3, $4, false)`,
+      [ownerId, "Claim your Referral Bonus", `You got a new ৳${setting.owner_bonus} referral bonus. .`, "success"]
+    );
       // Insert bonus for owner
       await pool.query(
         "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
