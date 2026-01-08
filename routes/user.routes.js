@@ -100,54 +100,52 @@ router.get("/", async (_, res) => {
 
 // Get referrals
 // Get referrals with claimed/unclaimed bonus
+// GET /users/:referral_code/referrals
 router.get("/:referral_code/referrals", async (req, res) => {
   const { referral_code } = req.params;
 
   try {
     // 1️⃣ Get all users referred by this code
-    const usersResult = await pool.query(
-      `SELECT id, name, email, phone, wallet, created_at, referral_code, referred_by
-       FROM users
-       WHERE referred_by = $1`,
+    const usersRes = await pool.query(
+      "SELECT id, name, email, phone, wallet, created_at, referral_code FROM users WHERE referred_by=$1",
       [referral_code]
     );
+    const users = usersRes.rows;
 
-    const users = usersResult.rows;
+    // 2️⃣ For each user, get bonuses
+    const bonusPromises = users.map(async (user) => {
+      const bonusRes = await pool.query(
+        "SELECT id, amount, is_claimed FROM referral_bonuses WHERE user_id=$1",
+        [user.id]
+      );
 
-    // 2️⃣ For each user, get their bonus info
-    const usersWithBonus = await Promise.all(
-      users.map(async (user) => {
-        const bonusResult = await pool.query(
-          `SELECT amount, is_claimed 
-           FROM referral_bonuses
-           WHERE user_id = $1`,
-          [user.id]
-        );
+      const bonuses = bonusRes.rows || [];
 
-        const bonuses = bonusResult.rows || [];
+      const claimedBonus = bonuses
+        .filter(b => b.is_claimed)
+        .reduce((sum, b) => sum + Number(b.amount), 0);
 
-        const claimedBonus = bonuses
-          .filter(b => b.is_claimed)
-          .reduce((sum, b) => sum + Number(b.amount), 0);
+      const unclaimedBonus = bonuses
+        .filter(b => !b.is_claimed)
+        .reduce((sum, b) => sum + Number(b.amount), 0);
 
-        const unclaimedBonus = bonuses
-          .filter(b => !b.is_claimed)
-          .reduce((sum, b) => sum + Number(b.amount), 0);
+      return {
+        ...user,
+        bonuses, // include full bonuses array with id, amount, is_claimed
+        claimed_bonus: claimedBonus,
+        unclaimed_bonus: unclaimedBonus
+      };
+    });
 
-        return {
-          ...user,
-          claimed_bonus: claimedBonus,
-          unclaimed_bonus: unclaimedBonus,
-        };
-      })
-    );
+    const result = await Promise.all(bonusPromises);
 
-    res.json(usersWithBonus);
+    res.json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // POST /api/referral/claim/:referralId
 router.post("/claim/:referralId", async (req, res) => {
@@ -156,7 +154,7 @@ router.post("/claim/:referralId", async (req, res) => {
   try {
     // 1️⃣ Get the bonus record
     const bonusRes = await pool.query(
-      "SELECT * FROM referral_bonuses WHERE user_id=$1 AND is_claimed=false",
+      "SELECT * FROM referral_bonuses WHERE id=$1 AND is_claimed=false",
       [referralId]
     );
     const bonus = bonusRes.rows[0];
