@@ -617,5 +617,61 @@ router.get("/phones/:user_id", async (req, res) => {
 
 
 
+router.get("/referral-setting", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, referred_bonus, owner_bonus, created_at, updated_at FROM referral_settings LIMIT 1"
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Referral settings not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching referral settings:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/referral-setting", async (req, res) => {
+  const { referred_bonus, owner_bonus } = req.body;
+
+  if (referred_bonus == null || owner_bonus == null) {
+    return res.status(400).json({ error: "Both referred_bonus and owner_bonus are required" });
+  }
+
+  try {
+    // Check if a row exists
+    const existing = await pool.query("SELECT id FROM referral_settings LIMIT 1");
+
+    let result;
+    if (existing.rows.length) {
+      // Update existing
+      result = await pool.query(
+        `UPDATE referral_settings
+         SET referred_bonus=$1, owner_bonus=$2, updated_at=NOW()
+         WHERE id=$3
+         RETURNING *`,
+        [referred_bonus, owner_bonus, existing.rows[0].id]
+      );
+    } else {
+      // Insert new
+      result = await pool.query(
+        `INSERT INTO referral_settings (referred_bonus, owner_bonus)
+         VALUES ($1, $2)
+         RETURNING *`,
+        [referred_bonus, owner_bonus]
+      );
+    }
+
+    res.json({ message: "Referral settings updated", settings: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating referral settings:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 
 export default router;
