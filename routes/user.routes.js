@@ -99,14 +99,56 @@ router.get("/", async (_, res) => {
 });
 
 // Get referrals
+// Get referrals with claimed/unclaimed bonus
 router.get("/:referral_code/referrals", async (req, res) => {
   const { referral_code } = req.params;
-  const result = await pool.query(
-    "SELECT * FROM users WHERE referred_by=$1",
-    [referral_code]
-  );
-  res.json(result.rows);
+
+  try {
+    // 1️⃣ Get all users referred by this code
+    const usersResult = await pool.query(
+      `SELECT id, name, email, phone, wallet, created_at, referral_code, referred_by
+       FROM users
+       WHERE referred_by = $1`,
+      [referral_code]
+    );
+
+    const users = usersResult.rows;
+
+    // 2️⃣ For each user, get their bonus info
+    const usersWithBonus = await Promise.all(
+      users.map(async (user) => {
+        const bonusResult = await pool.query(
+          `SELECT amount, is_claimed 
+           FROM referral_bonuses
+           WHERE user_id = $1`,
+          [user.id]
+        );
+
+        const bonuses = bonusResult.rows || [];
+
+        const claimedBonus = bonuses
+          .filter(b => b.is_claimed)
+          .reduce((sum, b) => sum + Number(b.amount), 0);
+
+        const unclaimedBonus = bonuses
+          .filter(b => !b.is_claimed)
+          .reduce((sum, b) => sum + Number(b.amount), 0);
+
+        return {
+          ...user,
+          claimed_bonus: claimedBonus,
+          unclaimed_bonus: unclaimedBonus,
+        };
+      })
+    );
+
+    res.json(usersWithBonus);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
+
 
 
 router.delete("/:id", async (req, res) => {
