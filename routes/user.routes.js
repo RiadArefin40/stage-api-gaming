@@ -156,7 +156,7 @@ router.post("/", async (req, res) => {
     await pool.query(
       `INSERT INTO notifications (user_id, title, message, type, is_read)
        VALUES ($1, $2, $3, $4, false)`,
-      [newUser.id, "Referral Bonus", `You got ৳${deposit.amount} referral bonus using the valid referral code.`, "success"]
+      [newUser.id, "Referral Bonus", `You got ৳${setting.referred_bonus} referral bonus using the valid referral code.`, "success"]
     );
       // Insert bonus for owner
       await pool.query(
@@ -276,10 +276,10 @@ router.post("/:bonusId/claim", async (req, res) => {
 
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newOwnerWallet, bonus.owner_id]);
 
-        await client.query(
+        await pool.query(
       `INSERT INTO notifications (user_id, title, message, type, is_read)
        VALUES ($1, $2, $3, $4, false)`,
-      [bonus.owner_id, "Referral Bonus", `You got a ৳${deposit.amount} referral bonus for a valid referral count.`, "success"]
+      [bonus.owner_id, "Referral Bonus", `You got a ৳${newOwnerWallet} referral bonus for a valid referral count.`, "success"]
     );
 
     // 5️⃣ Mark bonus as claimed
