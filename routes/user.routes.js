@@ -147,7 +147,7 @@ router.post("/", async (req, res) => {
       const settingRes = await pool.query(
         "SELECT referred_bonus, owner_bonus FROM referral_settings LIMIT 1"
       );
-      const setting = settingRes.rows[0] || { referred_bonus: 50, owner_bonus: 150 };
+      const setting = settingRes.rows[0] || { referred_bonus: 100, owner_bonus: 150 };
 
       // Insert bonus for new user
       await pool.query(
