@@ -128,7 +128,7 @@ router.get("/:referral_code/referrals", async (req, res) => {
     // 3️⃣ For each user, get bonuses
     const bonusPromises = users.map(async (user) => {
       const bonusRes = await pool.query(
-        "SELECT id, amount, is_claimed FROM referral_bonuses WHERE user_id=$1",
+        "SELECT id, owner_id, amount, is_claimed FROM referral_bonuses WHERE user_id=$1",
         [user.id]
       );
 
