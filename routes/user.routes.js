@@ -35,6 +35,62 @@ router.put("/headline", async (req, res) => {
 });
 
 // Create user
+// router.post("/", async (req, res) => {
+//   const { name, phone, password, referred_by, wallet } = req.body;
+
+//   if (!name || !phone || !password)
+//     return res.status(400).json({ error: "Missing fields" });
+
+//   try {
+//     // Check if user already exists
+//     const exists = await pool.query(
+//       "SELECT id FROM users WHERE phone=$1 OR name=$2",
+//       [phone, name]
+//     );
+
+//     if (exists.rows.length)
+//       return res.status(400).json({ error: "User already exists" });
+
+//     // Validate referral code if provided
+//     let validReferral = null;
+//     if (referred_by) {
+//       const ref = await pool.query(
+//         "SELECT id FROM users WHERE referral_code = $1",
+//         [referred_by]
+//       );
+//       if (!ref.rows.length)
+//         return res.status(400).json({ error: "Invalid referral code" });
+
+//       validReferral = referred_by;
+//     }
+
+//     // Generate unique referral code
+//     const referral_code = await generateUniqueReferralCode();
+
+//     // Insert user into users table
+//     const result = await pool.query(
+//       `INSERT INTO users (name, phone, password, referral_code, referred_by, wallet)
+//        VALUES ($1,$2,$3,$4,$5,$6)
+//        RETURNING *`,
+//       [name, phone, password, referral_code, validReferral, wallet || 0]
+//     );
+
+//     const newUser = result.rows[0];
+
+//     // Insert phone into user_phone_numbers table
+//     await pool.query(
+//       `INSERT INTO user_phone_numbers (user_id, phone)
+//        VALUES ($1, $2)`,
+//       [newUser.id, phone]
+//     );
+
+//     res.json({ message: "User created", user: newUser });
+//   } catch (err) {
+//     console.error("Error creating user:", err.message);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
 router.post("/", async (req, res) => {
   const { name, phone, password, referred_by, wallet } = req.body;
 
@@ -42,17 +98,17 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Missing fields" });
 
   try {
-    // Check if user already exists
+    // 1️⃣ Check if user already exists
     const exists = await pool.query(
       "SELECT id FROM users WHERE phone=$1 OR name=$2",
       [phone, name]
     );
-
     if (exists.rows.length)
       return res.status(400).json({ error: "User already exists" });
 
-    // Validate referral code if provided
+    // 2️⃣ Validate referral code if provided
     let validReferral = null;
+    let ownerId = null;
     if (referred_by) {
       const ref = await pool.query(
         "SELECT id FROM users WHERE referral_code = $1",
@@ -62,12 +118,13 @@ router.post("/", async (req, res) => {
         return res.status(400).json({ error: "Invalid referral code" });
 
       validReferral = referred_by;
+      ownerId = ref.rows[0].id;
     }
 
-    // Generate unique referral code
+    // 3️⃣ Generate unique referral code
     const referral_code = await generateUniqueReferralCode();
 
-    // Insert user into users table
+    // 4️⃣ Insert new user
     const result = await pool.query(
       `INSERT INTO users (name, phone, password, referral_code, referred_by, wallet)
        VALUES ($1,$2,$3,$4,$5,$6)
@@ -77,12 +134,33 @@ router.post("/", async (req, res) => {
 
     const newUser = result.rows[0];
 
-    // Insert phone into user_phone_numbers table
+    // 5️⃣ Insert phone into user_phone_numbers
     await pool.query(
       `INSERT INTO user_phone_numbers (user_id, phone)
        VALUES ($1, $2)`,
       [newUser.id, phone]
     );
+
+    // 6️⃣ Insert referral bonuses if referral exists
+    if (validReferral && ownerId) {
+      // Get bonus amounts from settings
+      const settingRes = await pool.query(
+        "SELECT referred_bonus, owner_bonus FROM referral_settings LIMIT 1"
+      );
+      const setting = settingRes.rows[0] || { referred_bonus: 50, owner_bonus: 150 };
+
+      // Insert bonus for new user
+      await pool.query(
+        "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
+        [newUser.id, ownerId, setting.referred_bonus]
+      );
+
+      // Insert bonus for owner
+      await pool.query(
+        "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
+        [ownerId, ownerId, setting.owner_bonus]
+      );
+    }
 
     res.json({ message: "User created", user: newUser });
   } catch (err) {
@@ -90,6 +168,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // Get all users
@@ -180,21 +259,21 @@ router.post("/:bonusId/claim", async (req, res) => {
     // 2️⃣ Get the user
     const userRes = await pool.query("SELECT wallet FROM users WHERE id=$1", [bonus.user_id]);
     const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: "User not found" });
 
     // 3️⃣ Get the owner
     const ownerRes = await pool.query("SELECT wallet FROM users WHERE id=$1", [bonus.owner_id]);
     const owner = ownerRes.rows[0];
-
-    if (!user || !owner) return res.status(404).json({ error: "User or owner not found" });
+    if (!owner) return res.status(404).json({ error: "Owner not found" });
 
     // 4️⃣ Update wallets
     const newWallet = parseFloat(user.wallet) + parseFloat(bonus.amount);
-    await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newWallet, bonus.user_id]);
-
     const newOwnerWallet = parseFloat(owner.wallet) + parseFloat(bonus.amount);
+
+    await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newWallet, bonus.user_id]);
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newOwnerWallet, bonus.owner_id]);
 
-    // 5️⃣ Mark bonus claimed
+    // 5️⃣ Mark bonus as claimed
     await pool.query(
       "UPDATE referral_bonuses SET is_claimed=true, updated_at=NOW() WHERE id=$1",
       [bonusId]
@@ -206,6 +285,7 @@ router.post("/:bonusId/claim", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 
 
