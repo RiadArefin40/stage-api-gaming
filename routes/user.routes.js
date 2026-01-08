@@ -174,7 +174,7 @@ router.post("/", async (req, res) => {
       await pool.query(
         `INSERT INTO user_turnover_history (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [newUser.id, 0, setting.owner_bonus, 'bonus', '', false, setting.owner_bonus]
+        [newUser.id, 9, setting.owner_bonus, 'default', '৫% ডিপোজিট বোনাস', false, setting.owner_bonus]
       );
     }
 
@@ -300,7 +300,7 @@ router.post("/:bonusId/claim", async (req, res) => {
       await pool.query(
         `INSERT INTO user_turnover_history (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [bonus.owner_id, 0, newWallet, 'bonus', '', false, newWallet]
+        [bonus.owner_id, 9, newWallet, 'default', '৫% ডিপোজিট বোনাস', false, newWallet]
       );
 
     res.json({ success: true,  newOwnerWallet });
