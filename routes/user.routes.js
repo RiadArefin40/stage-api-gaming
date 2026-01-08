@@ -169,6 +169,13 @@ router.post("/", async (req, res) => {
         "INSERT INTO referral_bonuses (user_id, owner_id, amount) VALUES ($1,$2,$3)",
         [newUser.id, ownerId, setting.owner_bonus]
       );
+
+      
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [newUser.id, 0, setting.owner_bonus, 'bonus', '', false, setting.owner_bonus]
+      );
     }
 
     res.json({ message: "User created", user: newUser });
@@ -288,6 +295,13 @@ router.post("/:bonusId/claim", async (req, res) => {
       "UPDATE referral_bonuses SET is_claimed=true, updated_at=NOW() WHERE id=$1",
       [bonusId]
     );
+
+
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [bonus.owner_id, 0, newWallet, 'bonus', '', false, newWallet]
+      );
 
     res.json({ success: true,  newOwnerWallet });
   } catch (error) {
