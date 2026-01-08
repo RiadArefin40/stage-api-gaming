@@ -101,18 +101,30 @@ router.get("/", async (_, res) => {
 // Get referrals
 // Get referrals with claimed/unclaimed bonus
 // GET /users/:referral_code/referrals
+// GET /users/:referral_code/referrals
 router.get("/:referral_code/referrals", async (req, res) => {
   const { referral_code } = req.params;
 
   try {
-    // 1️⃣ Get all users referred by this code
+    // 1️⃣ Get the referral code owner
+    const ownerRes = await pool.query(
+      "SELECT id AS owner_id, name AS owner_name, email AS owner_email, referral_code FROM users WHERE referral_code=$1",
+      [referral_code]
+    );
+    const owner = ownerRes.rows[0] || null;
+
+    if (!owner) {
+      return res.status(404).json({ error: "Referral code owner not found" });
+    }
+
+    // 2️⃣ Get all users referred by this code
     const usersRes = await pool.query(
       "SELECT id, name, email, phone, wallet, created_at, referral_code FROM users WHERE referred_by=$1",
       [referral_code]
     );
     const users = usersRes.rows;
 
-    // 2️⃣ For each user, get bonuses
+    // 3️⃣ Get bonuses for each referred user
     const bonusPromises = users.map(async (user) => {
       const bonusRes = await pool.query(
         "SELECT id, amount, is_claimed FROM referral_bonuses WHERE user_id=$1",
@@ -131,20 +143,25 @@ router.get("/:referral_code/referrals", async (req, res) => {
 
       return {
         ...user,
-        bonuses, // include full bonuses array with id, amount, is_claimed
+        bonuses, // include individual bonuses with id
         claimed_bonus: claimedBonus,
         unclaimed_bonus: unclaimedBonus
       };
     });
 
-    const result = await Promise.all(bonusPromises);
+    const referredUsers = await Promise.all(bonusPromises);
 
-    res.json(result);
+    res.json({
+      owner,
+      referred_users: referredUsers
+    });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 
 // POST /api/referral/claim/:referralId
