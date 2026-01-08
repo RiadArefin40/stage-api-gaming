@@ -164,39 +164,37 @@ router.get("/:referral_code/referrals", async (req, res) => {
 
 // POST /api/referral/claim/:referralId
 // Claim a bonus by its bonus ID
-router.post("/claim/:bonusId", async (req, res) => {
+// routes/referral-bonuses.js
+router.post("/:bonusId/claim", async (req, res) => {
   const { bonusId } = req.params;
 
   try {
-    // 1️⃣ Get the bonus record
+    // 1️⃣ Get the bonus
     const bonusRes = await pool.query(
       "SELECT * FROM referral_bonuses WHERE id=$1 AND is_claimed=false",
       [bonusId]
     );
     const bonus = bonusRes.rows[0];
-
     if (!bonus) return res.status(404).json({ error: "Bonus not found or already claimed" });
 
-    // 2️⃣ Get the user who will receive the bonus
+    // 2️⃣ Get the user
     const userRes = await pool.query("SELECT wallet FROM users WHERE id=$1", [bonus.user_id]);
     const user = userRes.rows[0];
 
-    // 3️⃣ Get the referral code owner
+    // 3️⃣ Get the owner
     const ownerRes = await pool.query("SELECT wallet FROM users WHERE id=$1", [bonus.owner_id]);
     const owner = ownerRes.rows[0];
 
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!owner) return res.status(404).json({ error: "Owner not found" });
+    if (!user || !owner) return res.status(404).json({ error: "User or owner not found" });
 
-    // 4️⃣ Update user's wallet
+    // 4️⃣ Update wallets
     const newWallet = parseFloat(user.wallet) + parseFloat(bonus.amount);
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newWallet, bonus.user_id]);
 
-    // 5️⃣ Update owner's wallet
     const newOwnerWallet = parseFloat(owner.wallet) + parseFloat(bonus.amount);
     await pool.query("UPDATE users SET wallet=$1 WHERE id=$2", [newOwnerWallet, bonus.owner_id]);
 
-    // 6️⃣ Mark bonus as claimed
+    // 5️⃣ Mark bonus claimed
     await pool.query(
       "UPDATE referral_bonuses SET is_claimed=true, updated_at=NOW() WHERE id=$1",
       [bonusId]
@@ -208,6 +206,7 @@ router.post("/claim/:bonusId", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 
 
