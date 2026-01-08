@@ -124,6 +124,33 @@ if (newActiveAmount <= 42 && newActiveAmount > 0 && turnoverDelayMinutes > 0) {
 
     await client.query("COMMIT");
 
+
+
+    const sessionRes = await pool.query(
+  `SELECT game_type
+   FROM active_game_sessions
+   WHERE user_id=$1
+   ORDER BY created_at DESC
+   LIMIT 1`,
+  [user.id]
+);
+
+if (!sessionRes.rows.length) {
+  return res.status(400).json({ error: "No game session found" });
+}
+
+const betType = sessionRes.rows[0].game_type;
+await pool.query(
+  `INSERT INTO user_bets (user_id, bet_type, amount)
+   VALUES ($1,$2,$3)
+   ON CONFLICT (user_id, bet_type)
+   DO UPDATE SET
+     amount = user_bets.amount + EXCLUDED.amount,
+     updated_at = NOW()`,
+  [user.id, betType, bet_amount]
+);
+
+
     // Respond immediately
     res.status(200).json({ success: true, wallet: wallet_after });
   } catch (err) {
