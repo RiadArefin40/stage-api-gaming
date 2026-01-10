@@ -703,5 +703,46 @@ router.get("/userbet/:user_id", async (req, res) => {
 });
 
 
+// social link
 
+router.post("/social-link", async (req, res) => {
+  try {
+    const { platform, group_link, is_active = true } = req.body;
+
+    if (!platform || !group_link) {
+      return res.status(400).json({
+        success: false,
+        message: "platform and group_link are required",
+      });
+    }
+
+    const query = `
+      INSERT INTO social_group_links (platform, group_link, is_active)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (platform)
+      DO UPDATE SET
+        group_link = EXCLUDED.group_link,
+        is_active = EXCLUDED.is_active,
+        updated_at = NOW()
+      RETURNING *;
+    `;
+
+    const { rows } = await pool.query(query, [
+      platform,
+      group_link,
+      is_active,
+    ]);
+
+    res.json({
+      success: true,
+      data: rows[0],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
 export default router;
