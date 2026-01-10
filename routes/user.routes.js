@@ -3,7 +3,7 @@ import { pool } from "../db.js";
 import { generateUniqueReferralCode } from "../utils/referral.js";
 
 const router = express.Router();
-
+const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
 
 
 
