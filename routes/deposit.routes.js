@@ -637,6 +637,24 @@ router.patch("/:id/:action", async (req, res) => {
 });
 
 
+// GET /deposit/:depositId/actions
+router.get("/:depositId/actions", async (req, res) => {
+  const { depositId } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, deposit_id, action_type, action_by, action_amount, created_at
+       FROM deposit_actions
+       WHERE deposit_id = $1
+       ORDER BY created_at DESC`,
+      [depositId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch deposit actions" });
+  }
+});
 
 
 
