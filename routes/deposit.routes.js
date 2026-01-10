@@ -590,7 +590,7 @@ router.patch("/:id/:action", async (req, res) => {
           return res.status(400).json({ error: "Owner balance insufficient" });
         }
 
-        if (action === "approve") {
+        if (action === "approved") {
           await client.query(
             `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
             [deposit.amount, ownerId]
@@ -606,7 +606,7 @@ router.patch("/:id/:action", async (req, res) => {
     );
 
     // Credit user wallet if approved
-    if (action === "approve") {
+    if (action === "approved") {
       await client.query(
         `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
         [deposit.amount, deposit.user_id]
@@ -687,7 +687,7 @@ router.get("/turnover/:user_id", async (req, res) => {
 
 
 // Reject deposit
-router.patch("/:id/reject", async (req, res) => {
+router.patch("/:id/rejected", async (req, res) => {
   const { id } = req.params;
 
   try {
