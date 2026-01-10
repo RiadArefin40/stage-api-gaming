@@ -547,6 +547,7 @@ router.get("/:userId", async (req, res) => {
 // ---------------------- APPROVE DEPOSIT ----------------------
 router.patch("/:id/approve", async (req, res) => {
   const { id } = req.params;
+  const { ownerId } = req.body; // optional owner ID
   const client = await pool.connect();
 
   try {
@@ -570,45 +571,71 @@ router.patch("/:id/approve", async (req, res) => {
       return res.status(400).json({ error: "Deposit already approved" });
     }
 
-    // ---------------- INTERNAL UPDATES ----------------
-    // Update deposit status to approved
+    // 2️⃣ Optional owner deduction
+    if (ownerId) {
+      const ownerResult = await client.query(
+        `SELECT id, wallet, role FROM users WHERE id = $1 FOR UPDATE`,
+        [ownerId]
+      );
+
+      if (!ownerResult.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Owner not found" });
+      }
+
+      const owner = ownerResult.rows[0];
+
+      if (owner.role !== "admin") {
+        if (owner.wallet < deposit.amount) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Owner balance insufficient for approval" });
+        }
+
+        await client.query(
+          `UPDATE users SET wallet = wallet - $1 WHERE id = $2`,
+          [deposit.amount, ownerId]
+        );
+      }
+    }
+
+    // 3️⃣ Approve deposit
     await client.query(
       `UPDATE deposits SET status='approved' WHERE id=$1`,
       [id]
     );
 
-    // Update user wallet
+    // 4️⃣ Credit user wallet
     await client.query(
       `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
       [deposit.amount, deposit.user_id]
     );
 
-    // Promo / turnover logic
-    let promo = null;
+    // 5️⃣ Promo / turnover logic
     if (deposit.promo_code) {
       const promoResult = await client.query(
         `SELECT * FROM promo_codes WHERE code=$1`,
         [deposit.promo_code]
       );
-      promo = promoResult.rows[0] || null;
+      const promo = promoResult.rows[0];
+
+      if (promo && promo.turnover) {
+        const turnoverAmount = deposit.amount * promo.turnover;
+
+        await client.query(
+          `UPDATE users SET turnover = turnover + $1 WHERE id=$2`,
+          [turnoverAmount, deposit.user_id]
+        );
+
+        await client.query(
+          `INSERT INTO user_turnover_history
+            (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [deposit.user_id, promo.id, turnoverAmount, promo.promo_type, promo.code, false, turnoverAmount]
+        );
+      }
     }
 
-    if (promo && promo.turnover) {
-      const turnoverAmount = deposit.amount * promo.turnover;
-
-      await client.query(
-        `UPDATE users SET turnover = turnover + $1 WHERE id=$2`,
-        [turnoverAmount, deposit.user_id]
-      );
-
-      await client.query(
-        `INSERT INTO user_turnover_history (user_id, promo_id, amount, type, code, complete, active_turnover_amount)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [deposit.user_id, promo.id, turnoverAmount, promo.promo_type, promo.code, false, turnoverAmount]
-      );
-    }
-
-    // Notification
+    // 6️⃣ Notify user
     await client.query(
       `INSERT INTO notifications (user_id, title, message, type, is_read)
        VALUES ($1, $2, $3, $4, false)`,
@@ -624,12 +651,13 @@ router.patch("/:id/approve", async (req, res) => {
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("APPROVE DEPOSIT ERROR:", err);
+    res.status(500).json({ error: "Server error. Approval failed." });
   } finally {
     client.release();
   }
 });
+
 
 
 
