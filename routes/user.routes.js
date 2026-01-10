@@ -716,7 +716,15 @@ router.post("/social-link", async (req, res) => {
       });
     }
 
-    const query = `
+    if (!ALLOWED_PLATFORMS.includes(platform)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid platform",
+      });
+    }
+
+    const result = await pool.query(
+      `
       INSERT INTO social_group_links (platform, group_link, is_active)
       VALUES ($1, $2, $3)
       ON CONFLICT (platform)
@@ -725,24 +733,577 @@ router.post("/social-link", async (req, res) => {
         is_active = EXCLUDED.is_active,
         updated_at = NOW()
       RETURNING *;
-    `;
-
-    const { rows } = await pool.query(query, [
-      platform,
-      group_link,
-      is_active,
-    ]);
+      `,
+      [platform, group_link, is_active]
+    );
 
     res.json({
       success: true,
-      data: rows[0],
+      data: result.rows[0],
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error("SOCIAL LINK UPSERT ERROR:", error.message);
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Internal server error",
     });
   }
 });
+
+/**
+ * GET all social group links (ADMIN)
+ * GET /social-link
+ */
+router.get("/social-link", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM social_group_links ORDER BY platform"
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("SOCIAL LINK FETCH ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET active social links only (FRONTEND)
+ * GET /social-link/active
+ */
+router.get("/social-link/active", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT platform, group_link FROM social_group_links WHERE is_active = true"
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("ACTIVE SOCIAL LINK ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * ENABLE / DISABLE platform
+ * PATCH /social-link/:platform/status
+ */
+router.patch("/social-link/:platform/status", async (req, res) => {
+  try {
+    const { platform } = req.params;
+    const { is_active } = req.body;
+
+    if (!ALLOWED_PLATFORMS.includes(platform)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid platform",
+      });
+    }
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "is_active must be boolean",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE social_group_links
+      SET is_active = $1, updated_at = NOW()
+      WHERE platform = $2
+      RETURNING *;
+      `,
+      [is_active, platform]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Platform not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("SOCIAL LINK STATUS ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+
+//  * CREATE hero slider
+//  * POST /hero-slider
+//  */
+router.post("/hero-slider", async (req, res) => {
+  try {
+    const {
+      image_url,
+      title = null,
+      subtitle = null,
+      link_url = null,
+      position = 0,
+      is_active = true,
+    } = req.body;
+
+    if (!image_url) {
+      return res.status(400).json({
+        success: false,
+        message: "image_url is required",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO hero_sliders
+      (image_url, title, subtitle, link_url, position, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+      `,
+      [image_url, title, subtitle, link_url, position, is_active]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("HERO SLIDER CREATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * UPDATE hero slider
+ * PUT /hero-slider/:id
+ */
+router.put("/hero-slider/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      image_url,
+      title,
+      subtitle,
+      link_url,
+      position,
+      is_active,
+    } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE hero_sliders SET
+        image_url = COALESCE($1, image_url),
+        title = COALESCE($2, title),
+        subtitle = COALESCE($3, subtitle),
+        link_url = COALESCE($4, link_url),
+        position = COALESCE($5, position),
+        is_active = COALESCE($6, is_active),
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING *;
+      `,
+      [image_url, title, subtitle, link_url, position, is_active, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("HERO SLIDER UPDATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * DELETE hero slider
+ * DELETE /hero-slider/:id
+ */
+router.delete("/hero-slider/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "DELETE FROM hero_sliders WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Slider deleted",
+    });
+  } catch (error) {
+    console.error("HERO SLIDER DELETE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * ENABLE / DISABLE slider
+ * PATCH /hero-slider/:id/status
+ */
+router.patch("/hero-slider/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "is_active must be boolean",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE hero_sliders
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *;
+      `,
+      [is_active, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("HERO SLIDER STATUS ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET all sliders (ADMIN)
+ * GET /hero-slider
+ */
+router.get("/hero-slider", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM hero_sliders ORDER BY position ASC"
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("HERO SLIDER FETCH ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET active sliders (FRONTEND)
+ * GET /hero-slider/active
+ */
+router.get("/hero-slider/active", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT image_url, title, subtitle, link_url
+      FROM hero_sliders
+      WHERE is_active = true
+      ORDER BY position ASC
+      `
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("ACTIVE HERO SLIDER ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+
+/**
+ * CREATE event slider
+ * POST /event-slider
+ */
+router.post("/event-slider", async (req, res) => {
+  try {
+    const {
+      image_url,
+      title = null,
+      subtitle = null,
+      link_url = null,
+      position = 0,
+      is_active = true,
+    } = req.body;
+
+    if (!image_url) {
+      return res.status(400).json({
+        success: false,
+        message: "image_url is required",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO event_sliders
+      (image_url, title, subtitle, link_url, position, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+      `,
+      [image_url, title, subtitle, link_url, position, is_active]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("EVENT SLIDER CREATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * UPDATE event slider
+ * PUT /event-slider/:id
+ */
+router.put("/event-slider/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      image_url,
+      title,
+      subtitle,
+      link_url,
+      position,
+      is_active,
+    } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE event_sliders SET
+        image_url = COALESCE($1, image_url),
+        title = COALESCE($2, title),
+        subtitle = COALESCE($3, subtitle),
+        link_url = COALESCE($4, link_url),
+        position = COALESCE($5, position),
+        is_active = COALESCE($6, is_active),
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING *;
+      `,
+      [image_url, title, subtitle, link_url, position, is_active, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Event slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("EVENT SLIDER UPDATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * DELETE event slider
+ * DELETE /event-slider/:id
+ */
+router.delete("/event-slider/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "DELETE FROM event_sliders WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Event slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Event slider deleted",
+    });
+  } catch (error) {
+    console.error("EVENT SLIDER DELETE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * ENABLE / DISABLE event slider
+ * PATCH /event-slider/:id/status
+ */
+router.patch("/event-slider/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "is_active must be boolean",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE event_sliders
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *;
+      `,
+      [is_active, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Event slider not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("EVENT SLIDER STATUS ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET all event sliders (ADMIN)
+ * GET /event-slider
+ */
+router.get("/event-slider", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM event_sliders ORDER BY position ASC"
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("EVENT SLIDER FETCH ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET active event sliders (FRONTEND)
+ * GET /event-slider/active
+ */
+router.get("/event-slider/active", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT image_url, title, subtitle, link_url
+      FROM event_sliders
+      WHERE is_active = true
+      ORDER BY position ASC
+      `
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("ACTIVE EVENT SLIDER ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+
+
 export default router;
