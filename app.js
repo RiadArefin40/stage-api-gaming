@@ -335,124 +335,124 @@ export function decrypt(encryptedBase64) {
 // });
 
 app.post("/launch_game", async (req, res) => {
-  const { userName, game_uid, credit_amount, game_type } = req.body;
-  const SERVER_URL = "https://bulkapi.in";
+  // const { userName, game_uid, credit_amount, game_type } = req.body;
+  // const SERVER_URL = "https://bulkapi.in";
 
-  console.log("🚀 Launch game request received:", {
-    userName,
-    game_uid,
-    credit_amount
-  });
+  // console.log("🚀 Launch game request received:", {
+  //   userName,
+  //   game_uid,
+  //   credit_amount
+  // });
 
-  if (!userName || !game_uid || !credit_amount) {
-    console.warn("⚠️ Missing required fields");
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields"
-    });
-  }
+  // if (!userName || !game_uid || !credit_amount) {
+  //   console.warn("⚠️ Missing required fields");
+  //   return res.status(400).json({
+  //     success: false,
+  //     message: "Missing required fields"
+  //   });
+  // }
 
-  const client = await pool.connect();
+  // const client = await pool.connect();
 
-  try {
-    console.log("🔗 DB connected");
-    await client.query("BEGIN");
+  // try {
+  //   console.log("🔗 DB connected");
+  //   await client.query("BEGIN");
 
-    // 🔍 Fetch user
-    const userResult = await client.query(
-      "SELECT id, wallet FROM users WHERE name = $1",
-      [userName]
-    );
+  //   // 🔍 Fetch user
+  //   const userResult = await client.query(
+  //     "SELECT id, wallet FROM users WHERE name = $1",
+  //     [userName]
+  //   );
 
-    if (!userResult.rows.length) {
-      console.warn(`❌ User not found: ${userName}`);
-      await client.query("ROLLBACK");
+  //   if (!userResult.rows.length) {
+  //     console.warn(`❌ User not found: ${userName}`);
+  //     await client.query("ROLLBACK");
 
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
+  //     return res.status(404).json({
+  //       success: false,
+  //       message: "User not found"
+  //     });
+  //   }
 
-    const user = userResult.rows[0];
-    const walletAmount = Number(user.wallet);
+  //   const user = userResult.rows[0];
+  //   const walletAmount = Number(user.wallet);
 
-    // if (isNaN(walletAmount) || walletAmount <= 0) {
-    //   console.warn(`❌ Insufficient wallet: ${walletAmount}`);
-    //   await client.query("ROLLBACK");
+  //   // if (isNaN(walletAmount) || walletAmount <= 0) {
+  //   //   console.warn(`❌ Insufficient wallet: ${walletAmount}`);
+  //   //   await client.query("ROLLBACK");
 
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "Insufficient wallet balance"
-    //   });
-    // }
+  //   //   return res.status(400).json({
+  //   //     success: false,
+  //   //     message: "Insufficient wallet balance"
+  //   //   });
+  //   // }
 
-    // ✅ Insert game session
-    if (game_type) {
-      await client.query(
-        `INSERT INTO active_game_sessions (user_id, game_type)
-         VALUES ($1, $2)`,
-        [user.id, game_type]
-      );
-      console.log("🎮 Game session created:", game_type);
-    }
+  //   // ✅ Insert game session
+  //   if (game_type) {
+  //     await client.query(
+  //       `INSERT INTO active_game_sessions (user_id, game_type)
+  //        VALUES ($1, $2)`,
+  //       [user.id, game_type]
+  //     );
+  //     console.log("🎮 Game session created:", game_type);
+  //  }
 
-    await client.query("COMMIT");
-    console.log("✅ DB transaction committed");
+    // await client.query("COMMIT");
+    // console.log("✅ DB transaction committed");
 
-    // ---------- ENCRYPTION ----------
-    const timestamp = Date.now();
+    // // ---------- ENCRYPTION ----------
+    // const timestamp = Date.now();
 
-    const payload = {
-      user_id: userName,
-      wallet_amount: walletAmount,
-      game_uid,
-      token: API_TOKEN,
-      timestamp
-    };
+    // const payload = {
+    //   user_id: userName,
+    //   wallet_amount: walletAmount,
+    //   game_uid,
+    //   token: API_TOKEN,
+    //   timestamp
+    // };
 
-    const encryptedPayload = encrypt(JSON.stringify(payload));
+    // const encryptedPayload = encrypt(JSON.stringify(payload));
 
-    const gameUrl =
-      `${SERVER_URL}/launch_game?` +
-      `user_id=${encodeURIComponent(userName)}` +
-      `&wallet_amount=${encodeURIComponent(credit_amount)}` +
-      `&game_uid=${encodeURIComponent(game_uid)}` +
-      `&token=${encodeURIComponent(API_TOKEN)}` +
-      `&timestamp=${timestamp}` +
-      `&payload=${encodeURIComponent(encryptedPayload)}`;
+    // const gameUrl =
+    //   `${SERVER_URL}/launch_game?` +
+    //   `user_id=${encodeURIComponent(userName)}` +
+    //   `&wallet_amount=${encodeURIComponent(credit_amount)}` +
+    //   `&game_uid=${encodeURIComponent(game_uid)}` +
+    //   `&token=${encodeURIComponent(API_TOKEN)}` +
+    //   `&timestamp=${timestamp}` +
+    //   `&payload=${encodeURIComponent(encryptedPayload)}`;
 
-    console.log("🔗 Game URL generated successfully");
+    // console.log("🔗 Game URL generated successfully");
 
-    // ⏱️ API Call
-    const response = await axios.get(gameUrl, {
-      timeout: 8000,
-      validateStatus: status => status < 500
-    });
+    // // ⏱️ API Call
+    // const response = await axios.get(gameUrl, {
+    //   timeout: 8000,
+    //   validateStatus: status => status < 500
+    // });
 
-    console.log("✅ Game launch successful");
+  //   console.log("✅ Game launch successful");
 
-    return res.json({
-      success: true,
-      data: response.data,
-      gameUrl
-    });
+  //   return res.json({
+  //     success: true,
+  //     data: response.data,
+  //     gameUrl
+  //   });
 
-  } catch (error) {
-    await client.query("ROLLBACK");
+  // } catch (error) {
+  //   await client.query("ROLLBACK");
 
-    console.error("❌ Launch Game Error:", error.message);
+  //   console.error("❌ Launch Game Error:", error.message);
 
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
+  //   return res.status(500).json({
+  //     success: false,
+  //     message: "Internal server error",
+  //     error: error.message
+  //   });
 
-  } finally {
-    client.release();
-    console.log("🔌 DB connection released");
-  }
+  // } finally {
+  //   client.release();
+  //   console.log("🔌 DB connection released");
+  // }
 });
 const scheduleTurnoverDelay = async (turnoverId, delayMinutes) => {
   const scheduledAt = new Date(Date.now() + delayMinutes * 10 * 1000);
