@@ -4,7 +4,36 @@ import { generateUniqueReferralCode } from "../utils/referral.js";
 
 const router = express.Router();
 const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
+// Ensure upload folder exists
+const uploadDir = "uploads/hero-sliders";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only images are allowed"));
+    }
+  },
+});
 
 
 router.get("/headline", async (req, res) => {
@@ -853,21 +882,241 @@ router.patch("/social-link/:platform/status", async (req, res) => {
 //  * CREATE hero slider
 //  * POST /hero-slider
 //  */
-router.post("/hero-slider", async (req, res) => {
+// router.post("/hero-slider", async (req, res) => {
+//   try {
+//     const {
+//       image_url,
+//       title = null,
+//       subtitle = null,
+//       link_url = null,
+//       position = 0,
+//       is_active = true,
+//     } = req.body;
+
+//     if (!image_url) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "image_url is required",
+//       });
+//     }
+
+//     const result = await pool.query(
+//       `
+//       INSERT INTO hero_sliders
+//       (image_url, title, subtitle, link_url, position, is_active)
+//       VALUES ($1, $2, $3, $4, $5, $6)
+//       RETURNING *;
+//       `,
+//       [image_url, title, subtitle, link_url, position, is_active]
+//     );
+
+//     res.json({
+//       success: true,
+//       data: result.rows[0],
+//     });
+//   } catch (error) {
+//     console.error("HERO SLIDER CREATE ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+/**
+ * UPDATE hero slider
+ * PUT /hero-slider/:id
+ */
+// router.put("/hero-slider/:id", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const {
+//       image_url,
+//       title,
+//       subtitle,
+//       link_url,
+//       position,
+//       is_active,
+//     } = req.body;
+
+//     const result = await pool.query(
+//       `
+//       UPDATE hero_sliders SET
+//         image_url = COALESCE($1, image_url),
+//         title = COALESCE($2, title),
+//         subtitle = COALESCE($3, subtitle),
+//         link_url = COALESCE($4, link_url),
+//         position = COALESCE($5, position),
+//         is_active = COALESCE($6, is_active),
+//         updated_at = NOW()
+//       WHERE id = $7
+//       RETURNING *;
+//       `,
+//       [image_url, title, subtitle, link_url, position, is_active, id]
+//     );
+
+//     if (result.rowCount === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Slider not found",
+//       });
+//     }
+
+//     res.json({
+//       success: true,
+//       data: result.rows[0],
+//     });
+//   } catch (error) {
+//     console.error("HERO SLIDER UPDATE ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+/**
+ * DELETE hero slider
+ * DELETE /hero-slider/:id
+ */
+// router.delete("/hero-slider/:id", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const result = await pool.query(
+//       "DELETE FROM hero_sliders WHERE id = $1 RETURNING id",
+//       [id]
+//     );
+
+//     if (result.rowCount === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Slider not found",
+//       });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: "Slider deleted",
+//     });
+//   } catch (error) {
+//     console.error("HERO SLIDER DELETE ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+/**
+ * ENABLE / DISABLE slider
+ * PATCH /hero-slider/:id/status
+ */
+// router.patch("/hero-slider/:id/status", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { is_active } = req.body;
+
+//     if (typeof is_active !== "boolean") {
+//       return res.status(400).json({
+//         success: false,
+//         message: "is_active must be boolean",
+//       });
+//     }
+
+//     const result = await pool.query(
+//       `
+//       UPDATE hero_sliders
+//       SET is_active = $1, updated_at = NOW()
+//       WHERE id = $2
+//       RETURNING *;
+//       `,
+//       [is_active, id]
+//     );
+
+//     if (result.rowCount === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Slider not found",
+//       });
+//     }
+
+//     res.json({
+//       success: true,
+//       data: result.rows[0],
+//     });
+//   } catch (error) {
+//     console.error("HERO SLIDER STATUS ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+/**
+ * GET all sliders (ADMIN)
+ * GET /hero-slider
+ */
+// router.get("/hero-slider", async (req, res) => {
+//   try {
+//     const result = await pool.query(
+//       "SELECT * FROM hero_sliders ORDER BY position ASC"
+//     );
+
+//     res.json({
+//       success: true,
+//       data: result.rows,
+//     });
+//   } catch (error) {
+//     console.error("HERO SLIDER FETCH ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+/**
+ * GET active sliders (FRONTEND)
+ * GET /hero-slider/active
+ */
+// router.get("/hero-slider/active", async (req, res) => {
+//   try {
+//     const result = await pool.query(
+//       `
+//       SELECT image_url, title, subtitle, link_url
+//       FROM hero_sliders
+//       WHERE is_active = true
+//       ORDER BY position ASC
+//       `
+//     );
+
+//     res.json({
+//       success: true,
+//       data: result.rows,
+//     });
+//   } catch (error) {
+//     console.error("ACTIVE HERO SLIDER ERROR:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+router.post("/hero-slider", upload.single("image"), async (req, res) => {
   try {
-    const {
-      image_url,
-      title = null,
-      subtitle = null,
-      link_url = null,
-      position = 0,
-      is_active = true,
-    } = req.body;
+    let { image_url, title = null, subtitle = null, link_url = null, position = 0, is_active = true } = req.body;
+
+    // If a file is uploaded, overwrite image_url with the file path
+    if (req.file) {
+      image_url = "/" + req.file.path.replace(/\\/g, "/"); // for Windows path fix
+    }
 
     if (!image_url) {
       return res.status(400).json({
         success: false,
-        message: "image_url is required",
+        message: "image_url or image file is required",
       });
     }
 
@@ -893,189 +1142,6 @@ router.post("/hero-slider", async (req, res) => {
     });
   }
 });
-
-/**
- * UPDATE hero slider
- * PUT /hero-slider/:id
- */
-router.put("/hero-slider/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      image_url,
-      title,
-      subtitle,
-      link_url,
-      position,
-      is_active,
-    } = req.body;
-
-    const result = await pool.query(
-      `
-      UPDATE hero_sliders SET
-        image_url = COALESCE($1, image_url),
-        title = COALESCE($2, title),
-        subtitle = COALESCE($3, subtitle),
-        link_url = COALESCE($4, link_url),
-        position = COALESCE($5, position),
-        is_active = COALESCE($6, is_active),
-        updated_at = NOW()
-      WHERE id = $7
-      RETURNING *;
-      `,
-      [image_url, title, subtitle, link_url, position, is_active, id]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Slider not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
-  } catch (error) {
-    console.error("HERO SLIDER UPDATE ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
-
-/**
- * DELETE hero slider
- * DELETE /hero-slider/:id
- */
-router.delete("/hero-slider/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.query(
-      "DELETE FROM hero_sliders WHERE id = $1 RETURNING id",
-      [id]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Slider not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Slider deleted",
-    });
-  } catch (error) {
-    console.error("HERO SLIDER DELETE ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
-
-/**
- * ENABLE / DISABLE slider
- * PATCH /hero-slider/:id/status
- */
-router.patch("/hero-slider/:id/status", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { is_active } = req.body;
-
-    if (typeof is_active !== "boolean") {
-      return res.status(400).json({
-        success: false,
-        message: "is_active must be boolean",
-      });
-    }
-
-    const result = await pool.query(
-      `
-      UPDATE hero_sliders
-      SET is_active = $1, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *;
-      `,
-      [is_active, id]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Slider not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
-  } catch (error) {
-    console.error("HERO SLIDER STATUS ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
-
-/**
- * GET all sliders (ADMIN)
- * GET /hero-slider
- */
-router.get("/hero-slider", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM hero_sliders ORDER BY position ASC"
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-    });
-  } catch (error) {
-    console.error("HERO SLIDER FETCH ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
-
-/**
- * GET active sliders (FRONTEND)
- * GET /hero-slider/active
- */
-router.get("/hero-slider/active", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `
-      SELECT image_url, title, subtitle, link_url
-      FROM hero_sliders
-      WHERE is_active = true
-      ORDER BY position ASC
-      `
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-    });
-  } catch (error) {
-    console.error("ACTIVE HERO SLIDER ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
-
 
 /**
  * CREATE event slider
