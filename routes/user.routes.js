@@ -4,9 +4,15 @@ import { generateUniqueReferralCode } from "../utils/referral.js";
 
 const router = express.Router();
 const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+
+// __dirname equivalent in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 // Upload folder
