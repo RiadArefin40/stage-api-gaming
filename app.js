@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 
 
 // import gameRoutes from "./routes/game.routes.js"
@@ -38,7 +38,7 @@ app.use(timeout('255s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.json());
-
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/deposit", depositRoutes);
