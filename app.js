@@ -48,7 +48,7 @@ app.use("/notifications", notificationRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use("/uploads/game-categories", express.static(path.join(__dirname, "uploads/game-categories")));
+
 
 
 app.post("/result", async (req, res) => {
