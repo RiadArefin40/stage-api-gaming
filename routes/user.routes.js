@@ -1223,6 +1223,37 @@ router.get("/hero-slider/active", async (req, res) => {
 });
 
 
+router.delete("/hero-slider/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch the slider first to get the image path
+    const existing = await pool.query("SELECT * FROM hero_sliders WHERE id = $1", [id]);
+    if (!existing.rows.length) return res.status(404).json({ success: false, message: "Slider not found" });
+
+    const slider = existing.rows[0];
+
+    // Delete the file from disk if exists
+    if (slider.image_url) {
+      const filePath = path.join(__dirname, slider.image_url.replace(/^\/+/, "")); // remove leading slash
+      if (fs.existsSync(filePath)) {
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete slider image:", err.message);
+        });
+      }
+    }
+
+    // Delete the DB record
+    await pool.query("DELETE FROM hero_sliders WHERE id = $1", [id]);
+
+    res.json({ success: true, message: "Slider deleted successfully" });
+  } catch (error) {
+    console.error("HERO SLIDER DELETE ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+
 /**
  * CREATE event slider
  * POST /event-slider
