@@ -1626,7 +1626,7 @@ router.get("/game-categories/:id/games", async (req, res) => {
     const result = await pool.query(
       `SELECT *
        FROM games
-       WHERE category_id=$1 AND is_active=true
+       WHERE category_id=$1 
        ORDER BY position ASC, id DESC`,
       [req.params.id]
     );
