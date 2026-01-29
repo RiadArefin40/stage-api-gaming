@@ -13,7 +13,12 @@ import paymentGateway from "./routes/paymentGateway.routes.js"
 import notificationRoutes from "./routes/notifications.routes.js";
 import crypto from "crypto";
 import { pool } from "./db.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 
 // import gameRoutes from "./routes/game.routes.js"

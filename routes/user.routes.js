@@ -1065,28 +1065,33 @@ router.patch("/social-link/:platform/status", async (req, res) => {
 
 
 router.post("/hero-slider", upload.single("image"), async (req, res) => {
-try {
-let { image_url, title = null, subtitle = null, link_url = null, position = 0, is_active = true } = req.body;
+  try {
+    const {
+      title = null,
+      subtitle = null,
+      link_url = null,
+      position = 0,
+      is_active = true,
+    } = req.body;
 
+    if (!req.file)
+      return res.status(400).json({ success: false, message: "Image required" });
 
-// Override image_url if a file is uploaded
-if (req.file) image_url = "/" + req.file.path.replace(/\\/g, "/");
+    const image_url = `/uploads/hero-sliders/${req.file.filename}`;
 
+    const result = await pool.query(
+      `INSERT INTO hero_sliders
+       (image_url, title, subtitle, link_url, position, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING *`,
+      [image_url, title, subtitle, link_url, position, is_active]
+    );
 
-if (!image_url) return res.status(400).json({ success: false, message: "image_url or image file is required" });
-
-
-const result = await pool.query(
-`INSERT INTO hero_sliders (image_url, title, subtitle, link_url, position, is_active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-[image_url, title, subtitle, link_url, position, is_active]
-);
-
-
-res.json({ success: true, data: result.rows[0] });
-} catch (error) {
-console.error("HERO SLIDER CREATE ERROR:", error.message);
-res.status(500).json({ success: false, message: "Internal server error" });
-}
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("HERO SLIDER CREATE ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 
