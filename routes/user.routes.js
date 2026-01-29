@@ -1410,4 +1410,271 @@ router.get("/event-slider/active", async (req, res) => {
 
 
 
+router.post(
+  "/game-categories",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { title, position = 0, is_active = true } = req.body;
+
+      if (!title)
+        return res.status(400).json({ message: "Title is required" });
+
+      if (!req.file)
+        return res.status(400).json({ message: "Image is required" });
+
+      const image_url = `/uploads/game-categories/${req.file.filename}`;
+
+      const result = await pool.query(
+        `INSERT INTO game_categories
+         (title, image_url, position, is_active)
+         VALUES ($1,$2,$3,$4)
+         RETURNING *`,
+        [title, image_url, position, is_active]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+      console.error("GAME CATEGORY CREATE ERROR:", err.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.get("/game-categories", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT *
+       FROM game_categories
+       WHERE is_active = true
+       ORDER BY position ASC, id DESC`
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put(
+  "/game-categories/:id",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, position = 0, is_active = true } = req.body;
+
+      const existing = await pool.query(
+        "SELECT * FROM game_categories WHERE id=$1",
+        [id]
+      );
+
+      if (!existing.rows.length)
+        return res.status(404).json({ message: "Category not found" });
+
+      let image_url = existing.rows[0].image_url;
+
+      if (req.file) {
+        image_url = `/uploads/game-categories/${req.file.filename}`;
+        // optional: delete old image here
+      }
+
+      const result = await pool.query(
+        `UPDATE game_categories
+         SET title=$1, image_url=$2, position=$3, is_active=$4, updated_at=now()
+         WHERE id=$5
+         RETURNING *`,
+        [title, image_url, position, is_active, id]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+
+
+router.delete("/game-categories/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "SELECT image_url FROM game_categories WHERE id=$1",
+      [id]
+    );
+
+    if (!result.rows.length)
+      return res.status(404).json({ message: "Not found" });
+
+    const imagePath = path.join(
+      __dirname,
+      "..",
+      result.rows[0].image_url
+    );
+
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+
+    await pool.query("DELETE FROM game_categories WHERE id=$1", [id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+
+
+router.post(
+  "/games",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const {
+        category_id,
+        uid,
+        title,
+        position = 0,
+        is_active = true,
+      } = req.body;
+
+      if (!category_id || !uid || !title)
+        return res.status(400).json({ message: "Missing required fields" });
+
+      if (!req.file)
+        return res.status(400).json({ message: "Image is required" });
+
+      // ensure category exists
+      const cat = await pool.query(
+        "SELECT id FROM game_categories WHERE id=$1",
+        [category_id]
+      );
+      if (!cat.rows.length)
+        return res.status(400).json({ message: "Invalid category" });
+
+      // check UID uniqueness
+      const exists = await pool.query(
+        "SELECT id FROM games WHERE uid=$1",
+        [uid]
+      );
+      if (exists.rows.length)
+        return res.status(400).json({ message: "UID already exists" });
+
+      const image_url = `/uploads/games/${req.file.filename}`;
+
+      const result = await pool.query(
+        `INSERT INTO games
+         (category_id, uid, title, image_url, position, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         RETURNING *`,
+        [category_id, uid, title, image_url, position, is_active]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+      console.error("GAME CREATE ERROR:", err.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.get("/game-categories/:id/games", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT *
+       FROM games
+       WHERE category_id=$1 AND is_active=true
+       ORDER BY position ASC, id DESC`,
+      [req.params.id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put(
+  "/games/:id",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        category_id,
+        uid,
+        title,
+        position = 0,
+        is_active = true,
+      } = req.body;
+
+      const existing = await pool.query(
+        "SELECT * FROM games WHERE id=$1",
+        [id]
+      );
+
+      if (!existing.rows.length)
+        return res.status(404).json({ message: "Game not found" });
+
+      let image_url = existing.rows[0].image_url;
+
+      if (req.file) {
+        image_url = `/uploads/games/${req.file.filename}`;
+        // optional: delete old image here
+      }
+
+      const result = await pool.query(
+        `UPDATE games
+         SET category_id=$1,
+             uid=$2,
+             title=$3,
+             image_url=$4,
+             position=$5,
+             is_active=$6,
+             updated_at=now()
+         WHERE id=$7
+         RETURNING *`,
+        [
+          category_id,
+          uid,
+          title,
+          image_url,
+          position,
+          is_active,
+          id,
+        ]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+router.delete("/games/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT image_url FROM games WHERE id=$1",
+      [req.params.id]
+    );
+
+    if (!result.rows.length)
+      return res.status(404).json({ message: "Game not found" });
+
+    const imagePath = path.join(__dirname, "..", result.rows[0].image_url);
+
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+
+    await pool.query("DELETE FROM games WHERE id=$1", [req.params.id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+
+
 export default router;
