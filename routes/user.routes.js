@@ -19,7 +19,11 @@ const __dirname = path.dirname(__filename);
 const uploadDir = "uploads/hero-sliders";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const categoryUploadDir = "uploads/game-categories";
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const gameUploadDir = "uploads/games";
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // Multer storage config
 const storage = multer.diskStorage({
 destination: (req, file, cb) => cb(null, uploadDir),
@@ -29,9 +33,44 @@ cb(null, uniqueSuffix + path.extname(file.originalname));
 },
 });
 
+const categoryStorage = multer.diskStorage({
+destination: (req, file, cb) => cb(null, categoryUploadDir),
+filename: (req, file, cb) => {
+const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+cb(null, uniqueSuffix + path.extname(file.originalname));
+},
+});
+
+const gameStorage = multer.diskStorage({
+destination: (req, file, cb) => cb(null, gameUploadDir),
+filename: (req, file, cb) => {
+const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+cb(null, uniqueSuffix + path.extname(file.originalname));
+},
+});
+
+
 
 const upload = multer({
 storage,
+fileFilter: (req, file, cb) => {
+if (file.mimetype.startsWith("image/")) cb(null, true);
+else cb(new Error("Only images are allowed"));
+},
+limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
+});
+
+const categoryUpload = multer({
+categoryStorage,
+fileFilter: (req, file, cb) => {
+if (file.mimetype.startsWith("image/")) cb(null, true);
+else cb(new Error("Only images are allowed"));
+},
+limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
+});
+
+const gameUpload = multer({
+gameStorage,
 fileFilter: (req, file, cb) => {
 if (file.mimetype.startsWith("image/")) cb(null, true);
 else cb(new Error("Only images are allowed"));
@@ -1412,7 +1451,7 @@ router.get("/event-slider/active", async (req, res) => {
 
 router.post(
   "/game-categories",
-  upload.single("image"),
+  categoryUpload.single("image"),
   async (req, res) => {
     try {
       const { title, position = 0, is_active = true } = req.body;
@@ -1458,7 +1497,7 @@ router.get("/game-categories", async (req, res) => {
 
 router.put(
   "/game-categories/:id",
-  upload.single("image"),
+  categoryUpload.single("image"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -1528,7 +1567,7 @@ router.delete("/game-categories/:id", async (req, res) => {
 
 router.post(
   "/games",
-  upload.single("image"),
+  gameUpload.single("image"),
   async (req, res) => {
     try {
       const {
@@ -1597,7 +1636,7 @@ router.get("/game-categories/:id/games", async (req, res) => {
 
 router.put(
   "/games/:id",
-  upload.single("image"),
+  gameUpload.single("image"),
   async (req, res) => {
     try {
       const { id } = req.params;
