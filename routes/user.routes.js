@@ -20,10 +20,13 @@ const uploadDir = "uploads/hero-sliders";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const categoryUploadDir = "uploads/game-categories";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+if (!fs.existsSync(categoryUploadDir)) fs.mkdirSync(categoryUploadDir, { recursive: true });
 
 const gameUploadDir = "uploads/games";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+if (!fs.existsSync(gameUploadDir)) fs.mkdirSync(gameUploadDir, { recursive: true });
+
+
+
 // Multer storage config
 const storage = multer.diskStorage({
 destination: (req, file, cb) => cb(null, uploadDir),
@@ -61,16 +64,16 @@ limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
 });
 
 const categoryUpload = multer({
-categoryStorage,
-fileFilter: (req, file, cb) => {
-if (file.mimetype.startsWith("image/")) cb(null, true);
-else cb(new Error("Only images are allowed"));
-},
-limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
+  storage: categoryStorage, // ← fixed here
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only images are allowed"));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 const gameUpload = multer({
-gameStorage,
+storage:gameStorage,
 fileFilter: (req, file, cb) => {
 if (file.mimetype.startsWith("image/")) cb(null, true);
 else cb(new Error("Only images are allowed"));
