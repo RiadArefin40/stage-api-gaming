@@ -25,7 +25,8 @@ if (!fs.existsSync(categoryUploadDir)) fs.mkdirSync(categoryUploadDir, { recursi
 const gameUploadDir = "uploads/games";
 if (!fs.existsSync(gameUploadDir)) fs.mkdirSync(gameUploadDir, { recursive: true });
 
-
+const eventUploadDir = "uploads/event-sliders";
+if (!fs.existsSync(eventUploadDir)) fs.mkdirSync(eventUploadDir, { recursive: true });
 
 // Multer storage config
 const storage = multer.diskStorage({
@@ -79,6 +80,23 @@ if (file.mimetype.startsWith("image/")) cb(null, true);
 else cb(new Error("Only images are allowed"));
 },
 limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
+});
+
+const eventStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, eventUploadDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const eventUpload = multer({
+  storage: eventStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only images are allowed"));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
 
@@ -1258,66 +1276,40 @@ router.delete("/hero-slider/:id", async (req, res) => {
  * CREATE event slider
  * POST /event-slider
  */
-router.post("/event-slider", async (req, res) => {
+// CREATE
+router.post("/event-slider", eventUpload.single("image"), async (req, res) => {
   try {
-    const {
-      image_url,
-      title = null,
-      subtitle = null,
-      link_url = null,
-      position = 0,
-      is_active = true,
-    } = req.body;
+    const { title = null, subtitle = null, link_url = null, position = 0, is_active = true } = req.body;
 
-    if (!image_url) {
-      return res.status(400).json({
-        success: false,
-        message: "image_url is required",
-      });
-    }
+    if (!req.file)
+      return res.status(400).json({ success: false, message: "Image is required" });
+
+    const image_url = `/uploads/event-sliders/${req.file.filename}`;
 
     const result = await pool.query(
-      `
-      INSERT INTO event_sliders
-      (image_url, title, subtitle, link_url, position, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *;
-      `,
+      `INSERT INTO event_sliders (image_url, title, subtitle, link_url, position, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [image_url, title, subtitle, link_url, position, is_active]
     );
 
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error("EVENT SLIDER CREATE ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-/**
- * UPDATE event slider
- * PUT /event-slider/:id
- */
-router.put("/event-slider/:id", async (req, res) => {
+// UPDATE
+router.put("/event-slider/:id", eventUpload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      image_url,
-      title,
-      subtitle,
-      link_url,
-      position,
-      is_active,
-    } = req.body;
+    const { title, subtitle, link_url, position, is_active } = req.body;
+
+    let image_url = req.body.image_url || null;
+    if (req.file) image_url = `/uploads/event-sliders/${req.file.filename}`;
 
     const result = await pool.query(
-      `
-      UPDATE event_sliders SET
+      `UPDATE event_sliders SET
         image_url = COALESCE($1, image_url),
         title = COALESCE($2, title),
         subtitle = COALESCE($3, subtitle),
@@ -1326,161 +1318,84 @@ router.put("/event-slider/:id", async (req, res) => {
         is_active = COALESCE($6, is_active),
         updated_at = NOW()
       WHERE id = $7
-      RETURNING *;
-      `,
+      RETURNING *`,
       [image_url, title, subtitle, link_url, position, is_active, id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Event slider not found",
-      });
-    }
+    if (result.rowCount === 0)
+      return res.status(404).json({ success: false, message: "Event slider not found" });
 
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error("EVENT SLIDER UPDATE ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-/**
- * DELETE event slider
- * DELETE /event-slider/:id
- */
+// DELETE
 router.delete("/event-slider/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      "DELETE FROM event_sliders WHERE id = $1 RETURNING id",
-      [id]
-    );
+    const result = await pool.query("DELETE FROM event_sliders WHERE id = $1 RETURNING id", [id]);
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Event slider not found",
-      });
-    }
+    if (result.rowCount === 0)
+      return res.status(404).json({ success: false, message: "Event slider not found" });
 
-    res.json({
-      success: true,
-      message: "Event slider deleted",
-    });
+    res.json({ success: true, message: "Event slider deleted" });
   } catch (error) {
     console.error("EVENT SLIDER DELETE ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-/**
- * ENABLE / DISABLE event slider
- * PATCH /event-slider/:id/status
- */
+// ENABLE/DISABLE
 router.patch("/event-slider/:id/status", async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
 
-    if (typeof is_active !== "boolean") {
-      return res.status(400).json({
-        success: false,
-        message: "is_active must be boolean",
-      });
-    }
+    if (typeof is_active !== "boolean")
+      return res.status(400).json({ success: false, message: "is_active must be boolean" });
 
     const result = await pool.query(
-      `
-      UPDATE event_sliders
-      SET is_active = $1, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *;
-      `,
+      `UPDATE event_sliders SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
       [is_active, id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Event slider not found",
-      });
-    }
+    if (result.rowCount === 0)
+      return res.status(404).json({ success: false, message: "Event slider not found" });
 
-    res.json({
-      success: true,
-      data: result.rows[0],
-    });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error("EVENT SLIDER STATUS ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-/**
- * GET all event sliders (ADMIN)
- * GET /event-slider
- */
+// GET all (ADMIN)
 router.get("/event-slider", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM event_sliders ORDER BY position ASC"
-    );
-
-    res.json({
-      success: true,
-      data: result.rows,
-    });
+    const result = await pool.query("SELECT * FROM event_sliders ORDER BY position ASC");
+    res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error("EVENT SLIDER FETCH ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-/**
- * GET active event sliders (FRONTEND)
- * GET /event-slider/active
- */
+// GET active (FRONTEND)
 router.get("/event-slider/active", async (req, res) => {
   try {
     const result = await pool.query(
-      `
-      SELECT image_url, title, subtitle, link_url
-      FROM event_sliders
-      WHERE is_active = true
-      ORDER BY position ASC
-      `
+      `SELECT image_url, title, subtitle, link_url FROM event_sliders WHERE is_active = true ORDER BY position ASC`
     );
-
-    res.json({
-      success: true,
-      data: result.rows,
-    });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error("ACTIVE EVENT SLIDER ERROR:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
-
 
 
 router.post(
