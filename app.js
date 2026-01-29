@@ -38,7 +38,7 @@ app.use(timeout('255s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/deposit", depositRoutes);
@@ -47,7 +47,7 @@ app.use("/payment-gateways", paymentGateway);
 app.use("/notifications", notificationRoutes);
 app.use("/withdrawals", widthdrawRoutes);
 // app.use("/games", gameRoutes);
-
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 
 
