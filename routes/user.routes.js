@@ -1519,7 +1519,7 @@ router.post("/games", gameUpload.single("image"), async (req, res) => {
   try {
     const { category_id, parent_id = null, uid, title, position = 0, is_active = true, is_provider = false } = req.body;
 
-    if (!category_id || !title || !uid)
+    if (!category_id || !title )
       return res.status(400).json({ message: "Missing required fields" });
 
     if (!req.file) return res.status(400).json({ message: "Image is required" });
