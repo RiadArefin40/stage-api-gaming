@@ -1873,7 +1873,7 @@ router.delete("/games/:id", async (req, res) => {
 });
 
 
-router.post("/users/:id/set-once", async (req, res) => {
+router.post("/:id/set-once", async (req, res) => {
   try {
     const { id } = req.params;
     const { full_name, dob } = req.body;
