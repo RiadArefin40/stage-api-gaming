@@ -1863,5 +1863,70 @@ router.delete("/games/:id", async (req, res) => {
 });
 
 
+router.post("/users/:id/set-once", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { full_name, dob } = req.body;
+
+    // Ensure exactly one field is provided
+    const fieldsProvided = [full_name, dob].filter(v => v !== undefined);
+    if (fieldsProvided.length !== 1) {
+      return res.status(400).json({
+        message: "Provide exactly one field: full_name OR dob",
+      });
+    }
+
+    // Validate DOB if provided
+    if (dob && isNaN(Date.parse(dob))) {
+      return res.status(400).json({ message: "Invalid DOB format" });
+    }
+
+    // Fetch existing user
+    const userRes = await pool.query(
+      "SELECT full_name, dob FROM users WHERE id = $1",
+      [id]
+    );
+
+    if (!userRes.rows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const user = userRes.rows[0];
+
+    // Determine which field to update
+    let fieldName, fieldValue;
+
+    if (full_name !== undefined) {
+      if (user.full_name) {
+        return res.status(400).json({ message: "Full name already set" });
+      }
+      fieldName = "full_name";
+      fieldValue = full_name.trim();
+    } else {
+      if (user.dob) {
+        return res.status(400).json({ message: "DOB already set" });
+      }
+      fieldName = "dob";
+      fieldValue = dob;
+    }
+
+    // Update the field
+    const result = await pool.query(
+      `UPDATE users
+       SET ${fieldName} = $1,
+           updated_at = now()
+       WHERE id = $2
+       RETURNING id, full_name, dob`,
+      [fieldValue, id]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("SET ONCE ERROR:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
 
 export default router;
