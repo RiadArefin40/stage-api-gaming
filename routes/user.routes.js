@@ -1823,19 +1823,29 @@ router.put(
 
 router.get("/game-categories/:id/games", async (req, res) => {
   try {
+    const { id } = req.params;
+
+    // Fetch games with category title
     const result = await pool.query(
-      `SELECT *
-       FROM games
-       WHERE category_id=$1 
-       ORDER BY position ASC, id DESC`,
-      [req.params.id]
+      `SELECT g.*, c.title AS category_title
+       FROM games g
+       JOIN game_categories c ON g.category_id = c.id
+       WHERE g.category_id = $1
+       ORDER BY g.position ASC, g.id DESC`,
+      [id]
     );
 
-    res.json(result.rows);
+    res.json({
+      category_id: id,
+      category_title: result.rows[0]?.category_title || null,
+      games: result.rows,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("FETCH GAMES ERROR:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
+
 
 
 
