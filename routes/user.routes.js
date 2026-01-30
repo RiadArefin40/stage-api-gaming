@@ -1536,8 +1536,17 @@ router.post("/games", gameUpload.single("image"), async (req, res) => {
     }
 
     // Check UID uniqueness
-    const exists = await pool.query("SELECT id FROM games WHERE uid=$1", [uid]);
-    if (exists.rows.length) return res.status(400).json({ message: "UID already exists" });
+    if (uid !== null && uid !== '') {
+      const exists = await pool.query(
+        "SELECT 1 FROM games WHERE uid = $1 LIMIT 1",
+        [uid]
+      );
+
+      if (exists.rows.length) {
+        return res.status(400).json({ message: "UID already exists" });
+      }
+    }
+
 
     const image_url = `/uploads/games/${req.file.filename}`;
 
