@@ -1527,7 +1527,7 @@ router.post(
         is_active = true,
       } = req.body;
 
-      if (!category_id || !uid || !title)
+      if (!category_id ||  !title)
         return res.status(400).json({ message: "Missing required fields" });
 
       if (!req.file)
