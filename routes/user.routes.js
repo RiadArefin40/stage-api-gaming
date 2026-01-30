@@ -1515,53 +1515,141 @@ router.delete("/game-categories/:id", async (req, res) => {
 
 
 // CREATE game
-router.post("/games", gameUpload.single("image"), async (req, res) => {
-  try {
-    const { category_id, parent_id = null, uid, title, position = 0, is_active = true, is_provider = false } = req.body;
+router.post(
+  "/games",
+  gameUpload.single("image"),
+  async (req, res) => {
+    try {
+      let {
+        category_id,
+        parent_id = null,
+        uid,
+        title,
+        position = 0,
+        is_active = true,
+        is_provider = false,
+      } = req.body;
 
-    if (!category_id || !title )
-      return res.status(400).json({ message: "Missing required fields" });
+      /* ---------------- NORMALIZE INPUT ---------------- */
 
-    if (!req.file) return res.status(400).json({ message: "Image is required" });
+      // normalize UID: empty / whitespace → NULL
+      uid =
+        typeof uid === "string" && uid.trim() !== ""
+          ? uid.trim()
+          : null;
 
-    // Ensure category exists
-    const cat = await pool.query("SELECT id FROM game_categories WHERE id=$1", [category_id]);
-    if (!cat.rows.length) return res.status(400).json({ message: "Invalid category" });
+      // normalize booleans (FormData sends strings)
+      is_active = is_active === true || is_active === "true";
+      is_provider = is_provider === true || is_provider === "true";
 
-    // Ensure parent exists if parent_id is provided
-    if (parent_id) {
-      const parent = await pool.query("SELECT id, is_provider FROM games WHERE id=$1", [parent_id]);
-      if (!parent.rows.length || !parent.rows[0].is_provider)
-        return res.status(400).json({ message: "Invalid parent provider game" });
-    }
+      // normalize numbers
+      position = Number(position) || 0;
+      category_id = Number(category_id);
+      parent_id = parent_id ? Number(parent_id) : null;
 
-    // Check UID uniqueness
-    if (uid !== null && uid !== '') {
-      const exists = await pool.query(
-        "SELECT 1 FROM games WHERE uid = $1 LIMIT 1",
-        [uid]
+      /* ---------------- VALIDATION ---------------- */
+
+      if (!category_id || !title) {
+        console.warn("⚠️ Missing required fields", req.body);
+        return res.status(400).json({
+          message: "Missing required fields",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Image is required",
+        });
+      }
+
+      /* ---------------- CATEGORY CHECK ---------------- */
+
+      const cat = await pool.query(
+        "SELECT id FROM game_categories WHERE id = $1",
+        [category_id]
       );
 
-      if (exists.rows.length) {
-        return res.status(400).json({ message: "UID already exists" });
+      if (!cat.rows.length) {
+        return res.status(400).json({
+          message: "Invalid category",
+        });
       }
+
+      /* ---------------- PARENT CHECK ---------------- */
+
+      if (parent_id) {
+        const parent = await pool.query(
+          "SELECT id, is_provider FROM games WHERE id = $1",
+          [parent_id]
+        );
+
+        if (!parent.rows.length || !parent.rows[0].is_provider) {
+          return res.status(400).json({
+            message: "Invalid parent provider game",
+          });
+        }
+      }
+
+      /* ---------------- UID UNIQUENESS ---------------- */
+
+      // only check when uid has a real value
+      if (uid !== null) {
+        const exists = await pool.query(
+          "SELECT 1 FROM games WHERE uid = $1 LIMIT 1",
+          [uid]
+        );
+
+        if (exists.rows.length) {
+          return res.status(400).json({
+            message: "UID already exists",
+          });
+        }
+      }
+
+      /* ---------------- INSERT ---------------- */
+
+      const image_url = `/uploads/games/${req.file.filename}`;
+
+      const result = await pool.query(
+        `
+        INSERT INTO games
+          (category_id, parent_id, uid, title, image_url, position, is_active, is_provider)
+        VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8)
+        RETURNING *
+        `,
+        [
+          category_id,
+          parent_id,
+          uid, // NULL or unique value
+          title,
+          image_url,
+          position,
+          is_active,
+          is_provider,
+        ]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows[0],
+      });
+    } catch (err) {
+      // handle unique index violation (extra safety)
+      if (err.code === "23505") {
+        return res.status(400).json({
+          message: "UID already exists",
+        });
+      }
+
+      console.error("GAME CREATE ERROR:", err);
+      return res.status(500).json({
+        message: "Internal server error",
+      });
     }
-
-
-    const image_url = `/uploads/games/${req.file.filename}`;
-
-    const result = await pool.query(
-      `INSERT INTO games (category_id, parent_id, uid, title, image_url, position, is_active, is_provider)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [category_id, parent_id, uid, title, image_url, position, is_active, is_provider]
-    );
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error("GAME CREATE ERROR:", err.message);
-    res.status(500).json({ message: "Internal server error" });
   }
-});
+);
+
 
 // UPDATE game
 router.put("/games/:id", gameUpload.single("image"), async (req, res) => {
