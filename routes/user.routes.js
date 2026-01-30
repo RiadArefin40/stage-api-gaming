@@ -1525,13 +1525,17 @@ router.post(
         title,
         position = 0,
         is_active = true,
+        is_provider = false,
       } = req.body;
 
-      if (!category_id ||  !title)
+      if (!category_id || !title)
         return res.status(400).json({ message: "Missing required fields" });
 
       if (!req.file)
         return res.status(400).json({ message: "Image is required" });
+
+      // normalize uid (important)
+      const finalUid = uid?.trim() || null;
 
       // ensure category exists
       const cat = await pool.query(
@@ -1541,22 +1545,32 @@ router.post(
       if (!cat.rows.length)
         return res.status(400).json({ message: "Invalid category" });
 
-      // check UID uniqueness
-      const exists = await pool.query(
-        "SELECT id FROM games WHERE uid=$1",
-        [uid]
-      );
-      if (exists.rows.length)
-        return res.status(400).json({ message: "UID already exists" });
+      // check UID uniqueness ONLY if uid exists
+      if (finalUid) {
+        const exists = await pool.query(
+          "SELECT id FROM games WHERE uid=$1",
+          [finalUid]
+        );
+        if (exists.rows.length)
+          return res.status(400).json({ message: "UID already exists" });
+      }
 
       const image_url = `/uploads/games/${req.file.filename}`;
 
       const result = await pool.query(
         `INSERT INTO games
-         (category_id, uid, title, image_url, position, is_active)
-         VALUES ($1,$2,$3,$4,$5,$6)
+         (category_id, uid, title, image_url, position, is_active, is_provider)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
          RETURNING *`,
-        [category_id, uid, title, image_url, position, is_active]
+        [
+          category_id,
+          finalUid,
+          title,
+          image_url,
+          position,
+          is_active,
+          is_provider,
+        ]
       );
 
       res.json({ success: true, data: result.rows[0] });
@@ -1566,6 +1580,7 @@ router.post(
     }
   }
 );
+
 
 router.get("/game-categories/:id/games", async (req, res) => {
   try {
@@ -1595,6 +1610,7 @@ router.put(
         title,
         position = 0,
         is_active = true,
+        is_provider = false,
       } = req.body;
 
       const existing = await pool.query(
@@ -1605,11 +1621,23 @@ router.put(
       if (!existing.rows.length)
         return res.status(404).json({ message: "Game not found" });
 
+      const finalUid = uid?.trim() || null;
+
+      // check UID uniqueness (exclude current row)
+      if (finalUid) {
+        const exists = await pool.query(
+          "SELECT id FROM games WHERE uid=$1 AND id<>$2",
+          [finalUid, id]
+        );
+        if (exists.rows.length)
+          return res.status(400).json({ message: "UID already exists" });
+      }
+
       let image_url = existing.rows[0].image_url;
 
       if (req.file) {
         image_url = `/uploads/games/${req.file.filename}`;
-        // optional: delete old image here
+        // optional: delete old image
       }
 
       const result = await pool.query(
@@ -1620,16 +1648,18 @@ router.put(
              image_url=$4,
              position=$5,
              is_active=$6,
+             is_provider=$7,
              updated_at=now()
-         WHERE id=$7
+         WHERE id=$8
          RETURNING *`,
         [
           category_id,
-          uid,
+          finalUid,
           title,
           image_url,
           position,
           is_active,
+          is_provider,
           id,
         ]
       );
@@ -1640,6 +1670,7 @@ router.put(
     }
   }
 );
+
 
 router.delete("/games/:id", async (req, res) => {
   try {
