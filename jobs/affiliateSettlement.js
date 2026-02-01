@@ -3,26 +3,43 @@ import { pool } from "../db.js";
 const COMMISSION_PERCENT = Number(process.env.AFFILIATE_COMMISSION_PERCENT || 10);
 const MIN_LOSS = Number(process.env.AFFILIATE_MIN_LOSS || 0);
 
+// function getDateRange() {
+//   const now = new Date();
+
+//   // Yesterday in UTC
+//   const from = new Date(Date.UTC(
+//     now.getUTCFullYear(),
+//     now.getUTCMonth(),
+//     now.getUTCDate() - 1,
+//     0, 0, 0, 0
+//   ));
+
+//   const to = new Date(Date.UTC(
+//     now.getUTCFullYear(),
+//     now.getUTCMonth(),
+//     now.getUTCDate() - 1,
+//     23, 59, 59, 999
+//   ));
+
+//   return { from, to };
+// }
+
 function getDateRange() {
   const now = new Date();
 
-  // Yesterday in UTC
   const from = new Date(Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
-    now.getUTCDate() - 1,
-    0, 0, 0, 0
+    now.getUTCDate() - 7,
+    now.getUTCHours(),
+    now.getUTCMinutes(),
+    now.getUTCSeconds(),
+    now.getUTCMilliseconds()
   ));
 
-  const to = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() - 1,
-    23, 59, 59, 999
-  ));
-
-  return { from, to };
+  return { from, to: now };
 }
+
 
 
 // yesterday 00:00 → 23:59
