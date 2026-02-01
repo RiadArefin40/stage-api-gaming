@@ -2099,7 +2099,7 @@ router.get("/affiliate/commissions", async (req, res) => {
 
 // GET /affiliate/commission/:userId
 // Node/Express example
-app.get("/users/:referral_code/commissions", async (req, res) => {
+app.get("/:referral_code/commissions", async (req, res) => {
   const { referral_code } = req.params;
   try {
     const commissions = await db.query(`
@@ -2118,6 +2118,27 @@ app.get("/users/:referral_code/commissions", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch commissions" });
   }
 });
+
+// GET /users/:user_id/commission-summary
+app.get("/:user_id/commission-summary", async (req, res) => {
+  const { user_id } = req.params;
+  try {
+    const result = await db.query(`
+      SELECT 
+        COALESCE(SUM(amount),0) as total_commission,
+        COALESCE(SUM(CASE WHEN is_claimed THEN amount ELSE 0 END),0) as claimed,
+        COALESCE(SUM(CASE WHEN NOT is_claimed THEN amount ELSE 0 END),0) as unclaimed
+      FROM affiliate_commissions
+      WHERE user_id = $1
+    `, [user_id]);
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch commission summary" });
+  }
+});
+
 
 
 export default router;
