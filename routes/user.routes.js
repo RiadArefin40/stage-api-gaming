@@ -2097,7 +2097,38 @@ router.get("/affiliate/commissions", async (req, res) => {
   }
 });
 
+// GET /affiliate/commission/:userId
+router.get("/commission/:userId", async (req, res) => {
+  const { userId } = req.params;
 
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT 
+        COALESCE(SUM(CASE WHEN status='approved' THEN commission_amount END), 0) AS approved,
+        COALESCE(SUM(CASE WHEN status='pending' THEN commission_amount END), 0) AS pending
+      FROM affiliate_commissions
+      WHERE referrer_id = $1
+      `,
+      [userId]
+    );
+
+    const { approved, pending } = rows[0];
+    const net = approved + pending; // can be negative if adjustments exist
+
+    res.json({
+      success: true,
+      data: {
+        approved: Number(approved),
+        pending: Number(pending),
+        net: Number(net),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Failed to fetch commission" });
+  }
+});
 
 
 export default router;
