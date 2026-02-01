@@ -2099,7 +2099,7 @@ router.get("/affiliate/commissions", async (req, res) => {
 
 // GET /affiliate/commission/:userId
 // Node/Express example
-app.get("/:referral_code/commissions", async (req, res) => {
+router.get("/:referral_code/commissions", async (req, res) => {
   const { referral_code } = req.params;
   try {
     const commissions = await db.query(`
@@ -2120,7 +2120,7 @@ app.get("/:referral_code/commissions", async (req, res) => {
 });
 
 // GET /users/:user_id/commission-summary
-app.get("/:user_id/commission-summary", async (req, res) => {
+router.get("/:user_id/commission-summary", async (req, res) => {
   const { user_id } = req.params;
   try {
     const result = await db.query(`
