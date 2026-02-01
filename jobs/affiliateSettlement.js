@@ -64,7 +64,7 @@ console.log(`Found ${usersRes.rows.length} referred users`);
         `,
         [user.id, from, to]
       );
-
+console.log(`User ${user.id} - Total Deposit: ${depRes.rows[0].total_deposit}`);
       // 5️⃣ Calculate withdrawals
       const wdRes = await client.query(
         `
@@ -76,7 +76,7 @@ console.log(`Found ${usersRes.rows.length} referred users`);
         `,
         [user.id, from, to]
       );
-
+console.log(`User ${user.id} - Total Withdraw: ${wdRes.rows[0].total_withdraw}`);
       const totalDeposit = Number(depRes.rows[0].total_deposit);
       const totalWithdraw = Number(wdRes.rows[0].total_withdraw);
       const loss = totalDeposit - totalWithdraw;
@@ -86,7 +86,7 @@ console.log(`Found ${usersRes.rows.length} referred users`);
       const commission = Number(
         ((loss * COMMISSION_PERCENT) / 100).toFixed(2)
       );
-
+console.log(`User ${user.id} - Loss: ${loss}, Commission: ${commission}`);
       // 6️⃣ Insert commission
       await client.query(
         `
