@@ -605,6 +605,16 @@ router.patch("/:id/:action", async (req, res) => {
       [action, id]
     );
 
+
+        // 2️⃣ Get promo (optional)
+    let promo = null;
+    if (deposit.promo_code) {
+      const promoResult = await client.query(
+        `SELECT * FROM promo_codes WHERE code = $1`,
+        [deposit.promo_code]
+      );
+      promo = promoResult.rows[0] || null;
+    }
     // Credit user wallet if approved
     if (action === "approved") {
       await client.query(
@@ -621,6 +631,39 @@ router.patch("/:id/:action", async (req, res) => {
         [id, actionBy, action, deposit.amount]
       );
     }
+
+        // 5️⃣ Turnover logic
+    if (promo && promo.turnover) {
+      const turnoverAmount = deposit.amount * promo.turnover;
+
+      await client.query(
+        `UPDATE users SET turnover = turnover + $1 WHERE id = $2`,
+        [turnoverAmount, deposit.user_id]
+      );
+      console.log('promo', promo)
+      await client.query(
+        `INSERT INTO user_turnover_history (user_id, promo_id, amount,type, code, complete, active_turnover_amount)
+         VALUES ($1, $2, $3, $4, $5 , $6, $7)`,
+        [deposit.user_id, promo.id, turnoverAmount,promo.promo_type, promo.code, false, turnoverAmount]
+      );
+    }
+
+    // 6️⃣ CREATE NOTIFICATION ✅
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        deposit.user_id,
+        "Deposit Approved",
+        `Your deposit of ৳${deposit.amount} has been approved successfully.`,
+        "success",
+      ]
+    );
+
+
 
     // Commit transaction
     await client.query("COMMIT");
