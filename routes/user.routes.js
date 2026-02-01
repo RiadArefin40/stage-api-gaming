@@ -2098,35 +2098,24 @@ router.get("/affiliate/commissions", async (req, res) => {
 });
 
 // GET /affiliate/commission/:userId
-router.get("/commission/:userId", async (req, res) => {
-  const { userId } = req.params;
-
+// Node/Express example
+app.get("/users/:referral_code/commissions", async (req, res) => {
+  const { referral_code } = req.params;
   try {
-    const { rows } = await pool.query(
-      `
-      SELECT 
-        COALESCE(SUM(CASE WHEN status='approved' THEN commission_amount END), 0) AS approved,
-        COALESCE(SUM(CASE WHEN status='pending' THEN commission_amount END), 0) AS pending
-      FROM affiliate_commissions
-      WHERE referrer_id = $1
-      `,
-      [userId]
-    );
+    const commissions = await db.query(`
+      SELECT u.id as user_id, u.name, u.email, u.phone,
+             SUM(CASE WHEN ac.is_claimed THEN ac.amount ELSE 0 END) as claimed_bonus,
+             SUM(CASE WHEN NOT ac.is_claimed THEN ac.amount ELSE 0 END) as unclaimed_bonus
+      FROM users u
+      LEFT JOIN affiliate_commissions ac ON ac.user_id = u.id
+      WHERE u.referral_code = $1
+      GROUP BY u.id
+    `, [referral_code]);
 
-    const { approved, pending } = rows[0];
-    const net = approved + pending; // can be negative if adjustments exist
-
-    res.json({
-      success: true,
-      data: {
-        approved: Number(approved),
-        pending: Number(pending),
-        net: Number(net),
-      },
-    });
+    res.json(commissions.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: "Failed to fetch commission" });
+    res.status(500).json({ error: "Failed to fetch commissions" });
   }
 });
 
