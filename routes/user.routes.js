@@ -1937,6 +1937,130 @@ router.post("/:id/set-once", async (req, res) => {
   }
 });
 
+router.patch("/affiliate/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const commissionRes = await client.query(
+      `SELECT * FROM affiliate_commissions WHERE id=$1 FOR UPDATE`,
+      [id]
+    );
+
+    if (!commissionRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Commission not found" });
+    }
+
+    const commission = commissionRes.rows[0];
+    if (commission.status === "approved") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Already approved" });
+    }
+
+    // Credit referrer wallet
+    await client.query(
+      `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+      [commission.commission_amount, commission.referrer_id]
+    );
+
+    // Update commission status
+    await client.query(
+      `UPDATE affiliate_commissions SET status='approved', approved_at=NOW() WHERE id=$1`,
+      [id]
+    );
+
+    // Notification
+    await client.query(
+      `INSERT INTO notifications (user_id, title, message, type, is_read)
+       VALUES ($1,'Commission Approved', $2, 'success', false)`,
+      [commission.referrer_id, `Your affiliate commission of ৳${commission.commission_amount} has been approved.`]
+    );
+
+    await client.query("COMMIT");
+    res.json({ message: "Commission approved successfully" });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    client.release();
+  }
+});
+router.patch("/affiliate/:id/reject", async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const commissionRes = await client.query(
+      `SELECT * FROM affiliate_commissions WHERE id=$1 FOR UPDATE`,
+      [id]
+    );
+    if (!commissionRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Commission not found" });
+    }
+
+    await client.query(
+      `UPDATE affiliate_commissions SET status='rejected', approved_at=NOW() WHERE id=$1`,
+      [id]
+    );
+
+    // Notification
+    await client.query(
+      `INSERT INTO notifications (user_id, title, message, type, is_read)
+       VALUES ($1,'Commission Rejected', $2, 'error', false)`,
+      [commissionRes.rows[0].referrer_id, `Your affiliate commission of ৳${commissionRes.rows[0].commission_amount} was rejected.`]
+    );
+
+    await client.query("COMMIT");
+    res.json({ message: "Commission rejected successfully" });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    client.release();
+  }
+});
+router.get("/affiliate/balance/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+
+  try {
+    const pendingRes = await client.query(
+      `SELECT COALESCE(SUM(commission_amount),0) AS pending
+       FROM affiliate_commissions
+       WHERE referrer_id=$1 AND status='pending'`,
+      [userId]
+    );
+
+    const approvedRes = await client.query(
+      `SELECT COALESCE(SUM(commission_amount),0) AS approved
+       FROM affiliate_commissions
+       WHERE referrer_id=$1 AND status='approved'`,
+      [userId]
+    );
+
+    res.json({
+      pending_balance: Number(pendingRes.rows[0].pending),
+      approved_balance: Number(approvedRes.rows[0].approved),
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    client.release();
+  }
+});
+
 
 
 export default router;
