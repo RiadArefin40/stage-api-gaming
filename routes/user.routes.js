@@ -2061,6 +2061,43 @@ router.get("/affiliate/balance/:userId", async (req, res) => {
   }
 });
 
+// GET all commissions
+router.get("/affiliate/commissions", async (req, res) => {
+  const { status, from, to } = req.query;
+  let query = `SELECT ac.*, 
+                      u1.name AS referrer_name,
+                      u2.name AS referred_name
+               FROM affiliate_commissions ac
+               JOIN users u1 ON ac.referrer_id = u1.id
+               JOIN users u2 ON ac.referred_user_id = u2.id
+               WHERE 1=1`;
+  const params = [];
+
+  if (status) {
+    params.push(status);
+    query += ` AND ac.status = $${params.length}`;
+  }
+
+  if (from) {
+    params.push(from);
+    query += ` AND ac.from_date >= $${params.length}`;
+  }
+
+  if (to) {
+    params.push(to);
+    query += ` AND ac.to_date <= $${params.length}`;
+  }
+
+  try {
+    const { rows } = await pool.query(query, params);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch commissions" });
+  }
+});
+
+
 
 
 export default router;
