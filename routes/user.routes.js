@@ -2102,7 +2102,7 @@ router.get("/affiliate/commissions", async (req, res) => {
 router.get("/:referral_code/commissions", async (req, res) => {
   const { referral_code } = req.params;
   try {
-    const commissions = await db.query(`
+    const commissions = await pool.query(`
       SELECT u.id as user_id, u.name, u.email, u.phone,
              SUM(CASE WHEN ac.is_claimed THEN ac.amount ELSE 0 END) as claimed_bonus,
              SUM(CASE WHEN NOT ac.is_claimed THEN ac.amount ELSE 0 END) as unclaimed_bonus
@@ -2123,7 +2123,7 @@ router.get("/:referral_code/commissions", async (req, res) => {
 router.get("/:user_id/commission-summary", async (req, res) => {
   const { user_id } = req.params;
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT 
         COALESCE(SUM(amount),0) as total_commission,
         COALESCE(SUM(CASE WHEN is_claimed THEN amount ELSE 0 END),0) as claimed,
