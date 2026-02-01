@@ -3,17 +3,39 @@ import { pool } from "../db.js";
 const COMMISSION_PERCENT = Number(process.env.AFFILIATE_COMMISSION_PERCENT || 10);
 const MIN_LOSS = Number(process.env.AFFILIATE_MIN_LOSS || 0);
 
-// yesterday 00:00 → 23:59
 function getDateRange() {
-  const from = new Date();
-  from.setDate(from.getDate() - 1);
-  from.setHours(0, 0, 0, 0);
+  const now = new Date();
 
-  const to = new Date(from);
-  to.setHours(23, 59, 59, 999);
+  // Yesterday in UTC
+  const from = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - 1,
+    0, 0, 0, 0
+  ));
+
+  const to = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - 1,
+    23, 59, 59, 999
+  ));
 
   return { from, to };
 }
+
+
+// yesterday 00:00 → 23:59
+// function getDateRange() {
+//   const from = new Date();
+//   from.setDate(from.getDate() - 1);
+//   from.setHours(0, 0, 0, 0);
+
+//   const to = new Date(from);
+//   to.setHours(23, 59, 59, 999);
+
+//   return { from, to };
+// }
 
 export async function runAffiliateSettlement() {
   const client = await pool.connect();
