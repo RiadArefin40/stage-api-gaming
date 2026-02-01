@@ -1,4 +1,4 @@
-import { pool } from "./db.js";
+import { pool } from "../db.js";
 
 const COMMISSION_PERCENT = Number(process.env.AFFILIATE_COMMISSION_PERCENT || 10);
 const MIN_LOSS = Number(process.env.AFFILIATE_MIN_LOSS || 0);
