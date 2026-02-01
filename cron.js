@@ -6,12 +6,8 @@ import { runAffiliateSettlement } from "./jobs/affiliateSettlement.js";
 //   await runAffiliateSettlement();
 // });
 
-let running = false;
+import { runAffiliateSettlement } from "./jobs/affiliateSettlement.js";
 
-cron.schedule("* * * * * *", async () => {
-  if (running) return;
-  running = true;
-  await runAffiliateSettlement();
-  running = false;
-});
+setInterval(runAffiliateSettlement, 1000); // every second (testing only)
+
 
