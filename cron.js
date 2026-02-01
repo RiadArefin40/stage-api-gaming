@@ -6,7 +6,7 @@ import { runAffiliateSettlement } from "./jobs/affiliateSettlement.js";
 //   await runAffiliateSettlement();
 // });
 
-import { runAffiliateSettlement } from "./jobs/affiliateSettlement.js";
+// import { runAffiliateSettlement } from "./jobs/affiliateSettlement.js";
 
 setInterval(runAffiliateSettlement, 1000); // every second (testing only)
 
