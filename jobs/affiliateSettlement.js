@@ -29,7 +29,7 @@ export async function runAffiliateSettlement() {
       FROM users
       WHERE referred_by IS NOT NULL
     `);
-
+console.log(`Found ${usersRes.rows.length} referred users`);
     for (const user of usersRes.rows) {
       // 2️⃣ Get referrer
       const refRes = await client.query(
