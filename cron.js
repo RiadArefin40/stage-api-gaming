@@ -1,8 +1,8 @@
 // cron.ts
 import cron from 'node-cron';
-import { runAffiliateSettlement } from './jobs/affiliateSettlement';
-import { getAffiliateCronConfig } from './config/affiliateCronConfig';
-import { buildCronExpression } from './utils/cronBuilder';
+import { runAffiliateSettlement } from './jobs/affiliateSettlement.js';
+import { getAffiliateCronConfig } from './config/affiliateCronConfig.js';
+import { buildCronExpression } from './utils/cronBuilder.js';
 
 let task= null;
 
