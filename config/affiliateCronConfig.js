@@ -1,4 +1,4 @@
-import db from '../db';
+import { db } from '../db.js';
 
 export async function getAffiliateCronConfig() {
   const rows = await db('system_settings')
