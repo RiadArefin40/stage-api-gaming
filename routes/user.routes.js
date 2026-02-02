@@ -2140,5 +2140,103 @@ router.get("/:user_id/commission-summary", async (req, res) => {
 });
 
 
+router.post('/affiliate/settlement/run', async (req, res) => {
+  try {
+    await runAffiliateSettlement();
+    res.json({
+      success: true,
+      message: 'Affiliate settlement executed successfully',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to run settlement',
+    });
+  }
+});
+
+// --------------------
+// GET cron config
+// --------------------
+router.get('/affiliate-cron', async (req, res) => {
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(`
+      SELECT key, value
+      FROM system_settings
+      WHERE key IN (
+        'affiliate_settlement_enabled',
+        'affiliate_settlement_type',
+        'affiliate_settlement_day',
+        'affiliate_settlement_time'
+      )
+    `);
+
+    client.release();
+
+    const map = {};
+    result.rows.forEach(row => (map[row.key] = row.value));
+
+    res.json({
+      enabled: map.affiliate_settlement_enabled === 'true',
+      type: map.affiliate_settlement_type || 'weekly',
+      day: Number(map.affiliate_settlement_day || 1),
+      time: map.affiliate_settlement_time || '00:05',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch cron config' });
+  }
+});
+
+// --------------------
+// PATCH / UPDATE cron config
+// --------------------
+router.patch('/affiliate-cron', async (req, res) => {
+  const { enabled, type, day, time } = req.body;
+
+  if (!['daily', 'weekly', 'monthly'].includes(type)) {
+    return res.status(400).json({ error: 'Invalid type' });
+  }
+  if (day < 0 || day > 7) {
+    return res.status(400).json({ error: 'Invalid day (0-7)' });
+  }
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    return res.status(400).json({ error: 'Invalid time (HH:MM)' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const updates = [
+      ['affiliate_settlement_enabled', enabled ? 'true' : 'false'],
+      ['affiliate_settlement_type', type],
+      ['affiliate_settlement_day', day.toString()],
+      ['affiliate_settlement_time', time],
+    ];
+
+    for (const [key, value] of updates) {
+      await client.query(
+        `INSERT INTO system_settings(key, value)
+         VALUES ($1, $2)
+         ON CONFLICT (key)
+         DO UPDATE SET value = EXCLUDED.value`,
+        [key, value]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Affiliate cron config updated successfully' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update cron config' });
+  } finally {
+    client.release();
+  }
+});
 
 export default router;

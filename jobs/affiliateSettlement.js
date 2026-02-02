@@ -1,108 +1,93 @@
 import { pool } from "../db.js";
 
-const COMMISSION_PERCENT = Number(process.env.AFFILIATE_COMMISSION_PERCENT || 10);
-const MIN_LOSS = Number(process.env.AFFILIATE_MIN_LOSS || 0);
+const MIN_LOSS = 0;
 
-// --------------------
-// Get last 7 days in UTC
-// --------------------
-function getLast7DaysUTC() {
-  const to = new Date();
-  const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+function getCurrentWeekUTC() {
+  const now = new Date();
+  const day = now.getUTCDay() || 7;
+
+  const from = new Date(now);
+  from.setUTCDate(now.getUTCDate() - day + 1);
+  from.setUTCHours(0, 0, 0, 0);
+
+  const to = new Date(from);
+  to.setUTCDate(from.getUTCDate() + 6);
+  to.setUTCHours(23, 59, 59, 999);
+
   return { from, to };
 }
 
-// --------------------
-// Run affiliate settlement
-// --------------------
+async function getCommissionPercent(client) {
+  const res = await client.query(`
+    SELECT value FROM system_settings
+    WHERE key = 'affiliate_commission_percent'
+  `);
+  return Number(res.rows[0]?.value || 10);
+}
+
 export async function runAffiliateSettlement() {
   const client = await pool.connect();
-  const { from, to } = getLast7DaysUTC();
+  const { from, to } = getCurrentWeekUTC();
 
   try {
-    console.log("🔁 Affiliate settlement started", from.toISOString(), to.toISOString());
+    console.log("🔁 Affiliate settlement", from.toISOString(), to.toISOString());
 
-    // --------------------
-    // Advisory lock: prevents overlapping runs
-    // --------------------
-    const lockRes = await client.query("SELECT pg_try_advisory_lock(987654321) AS acquired");
-    if (!lockRes.rows[0].acquired) {
-      console.log("⏭ Another settlement is running, skipping this run");
-      return;
-    }
+    const lock = await client.query(
+      "SELECT pg_try_advisory_lock(7777777) acquired"
+    );
+    if (!lock.rows[0].acquired) return;
 
     await client.query("BEGIN");
 
-    // --------------------
-    // 1️⃣ Get all referred users
-    // --------------------
-    const usersRes = await client.query(`
+    const COMMISSION_PERCENT = await getCommissionPercent(client);
+
+    const users = await client.query(`
       SELECT id, referred_by
       FROM users
       WHERE referred_by IS NOT NULL
     `);
 
-    console.log(`Found ${usersRes.rows.length} referred users`);
-
-    for (const user of usersRes.rows) {
-      // 2️⃣ Get referrer
-      const refRes = await client.query(
-        `SELECT id FROM users WHERE referral_code = $1`,
-        [user.referred_by]
+    for (const u of users.rows) {
+      const ref = await client.query(
+        "SELECT id FROM users WHERE referral_code = $1",
+        [u.referred_by]
       );
-      if (!refRes.rows.length) continue;
-      const referrerId = refRes.rows[0].id;
+      if (!ref.rows.length) continue;
 
-      // 3️⃣ Prevent duplicate settlement (per user per 7-day window)
-      const exists = await client.query(
-        `SELECT 1 FROM affiliate_commissions
-         WHERE referred_user_id = $1
-           AND from_date = $2
-           AND to_date = $3`,
-        [user.id, from, to]
-      );
-      if (exists.rows.length) continue;
+      const exists = await client.query(`
+        SELECT 1 FROM affiliate_commissions
+        WHERE referred_user_id = $1
+          AND from_date = $2
+          AND to_date = $3
+      `, [u.id, from, to]);
 
-      // 4️⃣ Total deposits (bonus excluded)
-      const depRes = await client.query(
-        `
-        SELECT COALESCE(SUM(amount - COALESCE(bonus_amount,0)),0) AS total_deposit
+      if (exists.rowCount) continue;
+
+      const dep = await client.query(`
+        SELECT COALESCE(SUM(amount - COALESCE(bonus_amount,0)),0) d
         FROM deposits
         WHERE user_id = $1
-          AND status = 'approved'
-          AND created_at >= $2
-          AND created_at < $3
-        `,
-        [user.id, from, to]
-      );
-      const totalDeposit = Number(depRes.rows[0].total_deposit);
+          AND status='approved'
+          AND created_at BETWEEN $2 AND $3
+      `, [u.id, from, to]);
 
-      // 5️⃣ Total withdrawals
-      const wdRes = await client.query(
-        `
-        SELECT COALESCE(SUM(amount),0) AS total_withdraw
+      const wd = await client.query(`
+        SELECT COALESCE(SUM(amount),0) w
         FROM withdrawals
         WHERE user_id = $1
-          AND status = 'approved'
-          AND created_at >= $2
-          AND created_at < $3
-        `,
-        [user.id, from, to]
-      );
-      const totalWithdraw = Number(wdRes.rows[0].total_withdraw);
+          AND status='approved'
+          AND created_at BETWEEN $2 AND $3
+      `, [u.id, from, to]);
 
-      const loss = totalDeposit - totalWithdraw;
+      const deposit = Number(dep.rows[0].d);
+      const withdraw = Number(wd.rows[0].w);
+      const loss = deposit - withdraw;
 
-      // 6️⃣ Skip if no loss or below min loss
-      if (loss <= 0 || loss < MIN_LOSS) continue;
+      if (loss <= MIN_LOSS) continue;
 
-      const commission = Number(((loss * COMMISSION_PERCENT) / 100).toFixed(2));
+      const commission = +(loss * COMMISSION_PERCENT / 100).toFixed(2);
 
-      console.log(`User ${user.id} - Loss: ${loss}, Commission: ${commission}`);
-
-      // 7️⃣ Insert commission safely
-      await client.query(
-        `
+      await client.query(`
         INSERT INTO affiliate_commissions
         (
           referrer_id,
@@ -113,27 +98,31 @@ export async function runAffiliateSettlement() {
           commission_percent,
           commission_amount,
           from_date,
-          to_date
+          to_date,
+          status
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        `,
-        [referrerId, user.id, totalDeposit, totalWithdraw, loss, COMMISSION_PERCENT, commission, from, to]
-      );
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
+      `, [
+        ref.rows[0].id,
+        u.id,
+        deposit,
+        withdraw,
+        loss,
+        COMMISSION_PERCENT,
+        commission,
+        from,
+        to
+      ]);
     }
 
     await client.query("COMMIT");
-    console.log("✅ Affiliate settlement completed");
+    console.log("✅ Settlement done");
 
-  } catch (err) {
+  } catch (e) {
     await client.query("ROLLBACK");
-    console.error("❌ Affiliate settlement failed", err);
+    console.error(e);
   } finally {
-    // --------------------
-    // Release advisory lock
-    // --------------------
-    try {
-      await client.query("SELECT pg_advisory_unlock(987654321)");
-    } catch (_) {}
+    await client.query("SELECT pg_advisory_unlock(7777777)");
     client.release();
   }
 }

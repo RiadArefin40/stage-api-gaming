@@ -18,7 +18,10 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// app.ts / server.ts
+import { initAffiliateCron } from './cron';
 
+initAffiliateCron();
 
 
 // import gameRoutes from "./routes/game.routes.js"
