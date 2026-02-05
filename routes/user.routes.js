@@ -2238,7 +2238,7 @@ router.patch('/affiliate-cron', async (req, res) => {
     client.release();
   }
 });
-router.patch('/sms', async (req, res) => {
+router.post('/sms', async (req, res) => {
 
   try {
    console.log("Received cron config update:", req.body);
