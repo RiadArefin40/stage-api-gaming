@@ -2268,6 +2268,30 @@ console.log('Received SMS:', { type, sender, message, timestamp });
     client.release();
   }
 });
+router.get('/admin/sms', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(`
+      SELECT
+        id,
+        type,
+        sender,
+        message,
+        received_at,
+        created_at
+      FROM incoming_sms
+      ORDER BY received_at DESC
+      LIMIT 500
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Failed to fetch SMS:', err);
+    res.status(500).json({ error: 'Failed to fetch SMS' });
+  } finally {
+    client.release();
+  }
+});
 
 
 export default router;
