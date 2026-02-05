@@ -2238,5 +2238,16 @@ router.patch('/affiliate-cron', async (req, res) => {
     client.release();
   }
 });
+router.patch('/sms', async (req, res) => {
+
+  try {
+   console.log("Received cron config update:", req.body);
+    res.json({ message: 'Get sms successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update cron config' });
+  } finally {
+  }
+});
 
 export default router;
