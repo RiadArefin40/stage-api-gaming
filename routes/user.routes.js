@@ -2244,7 +2244,7 @@ router.post('/sms', async (req, res) => {
   if (!sender || !message) {
     return res.status(400).json({ error: 'Invalid SMS payload' });
   }
-
+console.log('Received SMS:', { type, sender, message, timestamp });
   const client = await pool.connect();
   try {
     await client.query(
