@@ -2239,15 +2239,35 @@ router.patch('/affiliate-cron', async (req, res) => {
   }
 });
 router.post('/sms', async (req, res) => {
+  const { type, sender, message, timestamp } = req.body;
 
+  if (!sender || !message) {
+    return res.status(400).json({ error: 'Invalid SMS payload' });
+  }
+
+  const client = await pool.connect();
   try {
-   console.log("Received cron config update:", req.body);
-    res.json({ message: 'Get sms successfully' });
+    await client.query(
+      `
+      INSERT INTO incoming_sms (type, sender, message, received_at)
+      VALUES ($1, $2, $3, $4)
+      `,
+      [
+        type || 'SMS',
+        sender,
+        message,
+        timestamp ? new Date(timestamp) : new Date()
+      ]
+    );
+
+    res.json({ message: 'SMS stored successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update cron config' });
+    console.error('SMS insert failed:', err);
+    res.status(500).json({ error: 'Failed to store SMS' });
   } finally {
+    client.release();
   }
 });
+
 
 export default router;
