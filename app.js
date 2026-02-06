@@ -69,17 +69,35 @@ io.on("connection", (socket) => {
   socket.on("join_chat", ({ chatId }) => {
     if (!chatId) return;
     socket.join(chatId);
-    console.log(`📩 Joined chat room ${chatId}`);
+    console.log(`📩 Socket joined room ${chatId}`);
   });
 
-  socket.on("leave_chat", ({ chatId }) => {
-    socket.leave(chatId);
+  socket.on("send_message", async ({ chatId, message }) => {
+    if (!chatId || !message) return;
+
+    // Save message in DB
+    try {
+      const client = await pool.connect();
+      const { rows } = await client.query(
+        `INSERT INTO live_chat_messages (chat_id, sender, message)
+         VALUES ($1, 'user', $2)
+         RETURNING *`,
+        [chatId, message.message]
+      );
+
+      // Emit to everyone in the room
+      io.to(chatId).emit("receive_message", rows[0]);
+      client.release();
+    } catch (err) {
+      console.error("Failed to save/send message via socket:", err);
+    }
   });
 
   socket.on("disconnect", () => {
     console.log("🔴 Socket disconnected:", socket.id);
   });
 });
+
 
 
 
