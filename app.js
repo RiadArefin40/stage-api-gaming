@@ -64,37 +64,36 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("🟢 Socket connected:", socket.id);
+  console.log("Socket connected:", socket.id);
 
   socket.on("join_chat", ({ chatId }) => {
     if (!chatId) return;
     socket.join(chatId);
-    console.log(`📩 Socket joined room ${chatId}`);
+    console.log(`Socket ${socket.id} joined room ${chatId}`);
+  });
+
+  socket.on("leave_chat", ({ chatId }) => {
+    if (!chatId) return;
+    socket.leave(chatId);
+    console.log(`Socket ${socket.id} left room ${chatId}`);
   });
 
   socket.on("send_message", async ({ chatId, message }) => {
     if (!chatId || !message) return;
-
-    // Save message in DB
+    // save message in db
+    const client = await pool.connect();
     try {
-      const client = await pool.connect();
       const { rows } = await client.query(
         `INSERT INTO live_chat_messages (chat_id, sender, message)
-         VALUES ($1, 'user', $2)
-         RETURNING *`,
-        [chatId, message.message]
+         VALUES ($1, $2, $3) RETURNING *`,
+        [chatId, message.sender, message.message]
       );
 
-      // Emit to everyone in the room
+      // emit to room
       io.to(chatId).emit("receive_message", rows[0]);
+    } finally {
       client.release();
-    } catch (err) {
-      console.error("Failed to save/send message via socket:", err);
     }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("🔴 Socket disconnected:", socket.id);
   });
 });
 
