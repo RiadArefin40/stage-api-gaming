@@ -5,7 +5,7 @@ import timeout from 'connect-timeout';
 import cors from "cors";
 import https from "https";
 import bodyParser from "body-parser";
-import { Server } from "socket.io";
+import { Server as SocketIOServer } from "socket.io";
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import depositRoutes from "./routes/deposit.routes.js";
