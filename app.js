@@ -63,39 +63,26 @@ const io = new Server(server, {
   },
 });
 
+// server.js (or your Express/socket.io setup)
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
   socket.on("join_chat", ({ chatId }) => {
-    if (!chatId) return;
-    socket.join(chatId);
-    console.log(`Socket ${socket.id} joined room ${chatId}`);
+    console.log(`Socket ${socket.id} joining chat room: ${chatId}`);
+    socket.join(chatId); // <-- this is critical
   });
 
   socket.on("leave_chat", ({ chatId }) => {
-    if (!chatId) return;
     socket.leave(chatId);
-    console.log(`Socket ${socket.id} left room ${chatId}`);
   });
 
-  socket.on("send_message", async ({ chatId, message }) => {
-    if (!chatId || !message) return;
-    // save message in db
-    const client = await pool.connect();
-    try {
-      const { rows } = await client.query(
-        `INSERT INTO live_chat_messages (chat_id, sender, message)
-         VALUES ($1, $2, $3) RETURNING *`,
-        [chatId, message.sender, message.message]
-      );
-
-      // emit to room
-      io.to(chatId).emit("receive_message", rows[0]);
-    } finally {
-      client.release();
-    }
+  socket.on("send_message", ({ chatId, message }) => {
+    // Save to DB here...
+    const msg = { ...message, chat_id: chatId };
+    io.to(chatId).emit("receive_message", msg); // broadcast to all in room
   });
 });
+
 
 
 
