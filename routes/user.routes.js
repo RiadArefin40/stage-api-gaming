@@ -2377,27 +2377,7 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
   }
 });
 
-router.post("/chat/init", async (req, res) => {
-  const { user_id } = req.body;
-  const client = await pool.connect();
 
-  try {
-    const { rows } = await client.query(
-      `
-      INSERT INTO live_chats (id, user_id)
-      VALUES (gen_random_uuid(), $1)
-      RETURNING *
-      `,
-      [user_id]
-    );
-
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to init chat" });
-  } finally {
-    client.release();
-  }
-});
 
 router.post("/chat/init", async (req, res) => {
   const { user_id } = req.body;
@@ -2432,9 +2412,9 @@ router.post("/chat/init", async (req, res) => {
   }
 });
 
-router.get("/chat/:chatId/messages", async (req, res) => {
+router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
   const { chatId } = req.params;
-  const { user_id } = req.user; // from auth middleware
+   const { user_id } = req.params;
   const client = await pool.connect();
 
   try {
