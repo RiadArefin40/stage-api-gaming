@@ -2365,8 +2365,10 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
       [chatId, message]
     );
 
-    // 🔔 emit socket event here
-    req.io?.to(chatId).emit("receive_message", rows[0]);
+    // 🔔 Emit to room after insert
+    req.io.to(chatId).emit("receive_message", rows[0]);
+
+    console.log(`[DEBUG] Admin message emitted to room ${chatId}:`, rows[0]);
 
     res.json(rows[0]);
   } catch (err) {
@@ -2376,6 +2378,7 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
     client.release();
   }
 });
+
 
 
 
