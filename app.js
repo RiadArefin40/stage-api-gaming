@@ -3,6 +3,7 @@ import axios from "axios";
 import axiosRetry from 'axios-retry';
 import timeout from 'connect-timeout';
 import cors from "cors";
+import http from "http";
 import bodyParser from "body-parser";
 import { Server } from "socket.io";
 import authRoutes from "./routes/auth.routes.js";
