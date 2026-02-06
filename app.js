@@ -3,7 +3,7 @@ import axios from "axios";
 import axiosRetry from 'axios-retry';
 import timeout from 'connect-timeout';
 import cors from "cors";
-import http from "http";
+import https from "https";
 import bodyParser from "body-parser";
 import { Server } from "socket.io";
 import authRoutes from "./routes/auth.routes.js";
@@ -12,6 +12,7 @@ import depositRoutes from "./routes/deposit.routes.js";
 import promoRoutes from "./routes/promos.routes.js"
 import widthdrawRoutes from "./routes/widthdraw.routes.js"
 import paymentGateway from "./routes/paymentGateway.routes.js"
+import fs from "fs";
 import notificationRoutes from "./routes/notifications.routes.js";
 import crypto from "crypto";
 import { pool } from "./db.js";
@@ -26,44 +27,12 @@ import { initAffiliateCron } from './cron.js';
 initAffiliateCron();
 
 
-// import gameRoutes from "./routes/game.routes.js"
-const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
-const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
+// ---------------- CONFIG ----------------
+const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";
+const AES_KEY = "60fe91cdffa48eeca70403b3656446";
+
+// ---------------- EXPRESS APP ----------------
 const app = express();
-const server = http.createServer(app);
-/* ---------- SOCKET ---------- */
-const io = new Server(server, {
-  cors: {
-    origin: "*", // lock this in prod
-    methods: ["GET", "POST"],
-  },
-});
-
-/* Attach io to req */
-app.use((req, res, next) => {
-  req.io = io;
-  next();
-});
-
-/* ---------- SOCKET EVENTS ---------- */
-io.on("connection", (socket) => {
-  console.log("🟢 socket connected:", socket.id);
-
-  socket.on("join_chat", ({ chatId }) => {
-    if (!chatId) return;
-    socket.join(chatId);
-    console.log(`📩 joined chat room ${chatId}`);
-  });
-
-  socket.on("leave_chat", ({ chatId }) => {
-    socket.leave(chatId);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("🔴 socket disconnected:", socket.id);
-  });
-});
-axiosRetry(axios, { retries: 5, retryDelay: axiosRetry.exponentialDelay });
 
 app.use(
   cors({
@@ -72,6 +41,49 @@ app.use(
     credentials: true,
   })
 );
+
+app.use(timeout("255s"));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ---------------- SOCKET.IO ----------------
+axiosRetry(axios, { retries: 5, retryDelay: axiosRetry.exponentialDelay });
+
+// ---------------- HTTPS SERVER ----------------
+const privateKey = fs.readFileSync("/etc/letsencrypt/live/api.spcwin.com/privkey.pem", "utf8");
+const certificate = fs.readFileSync("/etc/letsencrypt/live/api.spcwin.com/fullchain.pem", "utf8");
+const credentials = { key: privateKey, cert: certificate };
+
+const server = https.createServer(credentials, app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("🟢 Socket connected:", socket.id);
+
+  socket.on("join_chat", ({ chatId }) => {
+    if (!chatId) return;
+    socket.join(chatId);
+    console.log(`📩 Joined chat room ${chatId}`);
+  });
+
+  socket.on("leave_chat", ({ chatId }) => {
+    socket.leave(chatId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Socket disconnected:", socket.id);
+  });
+});
+
+
 app.use(timeout('255s'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
