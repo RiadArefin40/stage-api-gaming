@@ -2379,61 +2379,44 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
 
 
 
-router.post("/chat/init", async (req, res) => {
+// ----------------- ROUTES -----------------
+// Example: init chat for user
+app.post("/chat/init", async (req, res) => {
   const { user_id } = req.body;
   const client = await pool.connect();
-
   try {
-    // Check existing open chat
     const existing = await client.query(
       `SELECT * FROM live_chats WHERE user_id = $1 AND status = 'open' LIMIT 1`,
       [user_id]
     );
 
-    if (existing.rows.length) {
-      return res.json(existing.rows[0]);
-    }
+    if (existing.rows.length) return res.json(existing.rows[0]);
 
     const { rows } = await client.query(
-      `INSERT INTO live_chats (id, user_id)
-       VALUES (gen_random_uuid(), $1)
-       RETURNING *`,
+      `INSERT INTO live_chats (id, user_id) VALUES (gen_random_uuid(), $1) RETURNING *`,
       [user_id]
     );
 
     res.json(rows[0]);
-  }
-  catch(e){
-    console.log(e);
-  }
-  
-  finally {
+  } finally {
     client.release();
   }
 });
 
-router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
-  const { chatId } = req.params;
-   const { user_id } = req.params;
+// Example: get messages
+app.get("/chat/:user_id/:chatId/messages", async (req, res) => {
+  const { chatId, user_id } = req.params;
   const client = await pool.connect();
-
   try {
-    // Ownership check
     const chat = await client.query(
       `SELECT 1 FROM live_chats WHERE id = $1 AND user_id = $2`,
       [chatId, user_id]
     );
 
-    if (!chat.rowCount) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    if (!chat.rowCount) return res.status(403).json({ error: "Access denied" });
 
     const { rows } = await client.query(
-      `SELECT sender, message, created_at
-       FROM live_chat_messages
-       WHERE chat_id = $1
-       ORDER BY created_at ASC
-       LIMIT 500`,
+      `SELECT id, sender, message, created_at FROM live_chat_messages WHERE chat_id = $1 ORDER BY created_at ASC`,
       [chatId]
     );
 
@@ -2442,7 +2425,6 @@ router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
     client.release();
   }
 });
-
 
 router.post("/chat/:user_id/:chatId/message", async (req, res) => {
   const { chatId } = req.params;

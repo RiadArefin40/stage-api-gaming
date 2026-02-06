@@ -63,23 +63,46 @@ const io = new Server(server, {
   },
 });
 
-// server.js (or your Express/socket.io setup)
 io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
+  console.log("✅ Socket connected:", socket.id);
 
+  // Join a chat room
   socket.on("join_chat", ({ chatId }) => {
-    console.log(`Socket ${socket.id} joining chat room: ${chatId}`);
-    socket.join(chatId); // <-- this is critical
+    socket.join(chatId);
+    console.log(`Socket ${socket.id} joined chat room ${chatId}`);
   });
 
+  // Leave a chat room
   socket.on("leave_chat", ({ chatId }) => {
     socket.leave(chatId);
+    console.log(`Socket ${socket.id} left chat room ${chatId}`);
   });
 
-  socket.on("send_message", ({ chatId, message }) => {
-    // Save to DB here...
-    const msg = { ...message, chat_id: chatId };
-    io.to(chatId).emit("receive_message", msg); // broadcast to all in room
+  // Handle sending a message
+  socket.on("send_message", async ({ chatId, message }) => {
+    try {
+      // Save to DB
+      const { rows } = await pool.query(
+        `INSERT INTO live_chat_messages (chat_id, sender, message)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [chatId, message.sender, message.message]
+      );
+
+      const savedMsg = rows[0];
+
+      // Include chat_id for client-side filtering
+      savedMsg.chat_id = chatId;
+
+      // Emit to everyone in the room (admin + user)
+      io.to(chatId).emit("receive_message", savedMsg);
+    } catch (err) {
+      console.error("Failed to save/send message:", err);
+    }
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log("🔴 Socket disconnected:", socket.id, reason);
   });
 });
 
