@@ -2366,7 +2366,7 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
     );
 
     // 🔔 Emit to the room using global io
-    io.to(chatId).emit("receive_message", rows[0]);
+    req.io.to(chatId).emit("receive_message", rows[0]);
     console.log(`[DEBUG] Admin emitted message to room ${chatId}:`, rows[0]);
 
     res.json(rows[0]);
