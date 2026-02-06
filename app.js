@@ -56,15 +56,19 @@ const server = app.listen(22000, () =>
   console.log("✅ Server running on http://localhost:22000")
 );
 
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
+
 
 
 // ----------------- SOCKET.IO -----------------
+// ----------------- SOCKET.IO -----------------
+export const io = new SocketIOServer(server, {
+  cors: {
+    origin: "*", // adjust your frontend origin
+    methods: ["GET", "POST"],
+  },
+  path: "/socket.io",
+});
+
 io.on("connection", (socket) => {
   console.log("✅ New socket connected:", socket.id);
 

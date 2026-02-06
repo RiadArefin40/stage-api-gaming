@@ -1,7 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { generateUniqueReferralCode } from "../utils/referral.js";
-
+import { io } from "../app.js";
 const router = express.Router();
 const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
 import multer from "multer";
@@ -2356,6 +2356,7 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
   const client = await pool.connect();
 
   try {
+    // Save message in DB
     const { rows } = await client.query(
       `
       INSERT INTO live_chat_messages (chat_id, sender, message)
@@ -2365,11 +2366,13 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
       [chatId, message]
     );
 
-    // 🔔 Emit to the room using global io
-    req.io.to(chatId).emit("receive_message", rows[0]);
-    console.log(`[DEBUG] Admin emitted message to room ${chatId}:`, rows[0]);
+    const savedMsg = rows[0];
 
-    res.json(rows[0]);
+    // 🔔 Emit message to the chat room
+    io.to(chatId).emit("receive_message", savedMsg);
+    console.log(`[DEBUG] Admin emitted message to room ${chatId}:`, savedMsg);
+
+    res.json(savedMsg);
   } catch (err) {
     console.error("Failed to send message:", err);
     res.status(500).json({ error: "Failed to send message" });
