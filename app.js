@@ -96,10 +96,6 @@ io.on("connection", (socket) => {
 
 
 
-app.use((req, res, next) => {
-  req.io = io; // attach io to request
-  next();
-});
 
 
 app.use(timeout('255s'));

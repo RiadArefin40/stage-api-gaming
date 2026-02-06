@@ -1,7 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { generateUniqueReferralCode } from "../utils/referral.js";
-import{io} from "../app.js";
+
 const router = express.Router();
 const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
 import multer from "multer";
@@ -2352,18 +2352,21 @@ router.get("/admin/chats/:chatId/messages", async (req, res) => {
 router.post("/admin/chats/:chatId/message", async (req, res) => {
   const { chatId } = req.params;
   const { message } = req.body;
+
   const client = await pool.connect();
 
   try {
     const { rows } = await client.query(
-      `INSERT INTO live_chat_messages (chat_id, sender, message)
-       VALUES ($1, 'support', $2)
-       RETURNING *`,
+      `
+      INSERT INTO live_chat_messages (chat_id, sender, message)
+      VALUES ($1, 'support', $2)
+      RETURNING *
+      `,
       [chatId, message]
     );
 
-    // Use global io instead of req.io
-    io.to(chatId).emit("receive_message", rows[0]);
+    // 🔔 Emit to the room using global io
+    req.io.to(chatId).emit("receive_message", rows[0]);
     console.log(`[DEBUG] Admin emitted message to room ${chatId}:`, rows[0]);
 
     res.json(rows[0]);
