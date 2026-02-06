@@ -29,7 +29,7 @@ initAffiliateCron();
 const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
 const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
-
+const server = http.createServer(app);
 /* ---------- SOCKET ---------- */
 const io = new Server(server, {
   cors: {
