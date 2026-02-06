@@ -51,12 +51,10 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ---------------- SOCKET.IO ----------------
 axiosRetry(axios, { retries: 5, retryDelay: axiosRetry.exponentialDelay });
 
-// ---------------- HTTPS SERVER ----------------
-const privateKey = fs.readFileSync("/etc/letsencrypt/live/api.spcwin.com/privkey.pem", "utf8");
-const certificate = fs.readFileSync("/etc/letsencrypt/live/api.spcwin.com/fullchain.pem", "utf8");
-const credentials = { key: privateKey, cert: certificate };
-
-const server = https.createServer(credentials, app);
+// ---------------- SOCKET.IO ----------------
+const server = app.listen(22000, () =>
+  console.log("✅ Server running on http://localhost:22000")
+);
 
 const io = new Server(server, {
   cors: {
@@ -82,6 +80,7 @@ io.on("connection", (socket) => {
     console.log("🔴 Socket disconnected:", socket.id);
   });
 });
+
 
 
 app.use(timeout('255s'));
