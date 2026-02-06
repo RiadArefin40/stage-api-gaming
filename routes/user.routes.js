@@ -2444,10 +2444,10 @@ router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
 });
 
 
-router.post("/chat/:chatId/message", async (req, res) => {
+router.post("/chat/:user_id/:chatId/message", async (req, res) => {
   const { chatId } = req.params;
   const { message } = req.body;
-  const { user_id } = req.user;
+  const { user_id } = req.params;
   const client = await pool.connect();
 
   try {
