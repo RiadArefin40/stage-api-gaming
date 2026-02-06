@@ -2294,4 +2294,204 @@ router.get('/admin/sms', async (req, res) => {
 });
 
 
+router.get("/admin/chats", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(`
+      SELECT
+        c.id,
+        c.user_id,
+        c.status,
+        MAX(m.created_at) AS last_message_at,
+        COUNT(*) FILTER (WHERE m.sender = 'user') AS user_messages
+      FROM live_chats c
+      LEFT JOIN live_chat_messages m ON m.chat_id = c.id
+      GROUP BY c.id
+      ORDER BY last_message_at DESC
+      LIMIT 200
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch chats:", err);
+    res.status(500).json({ error: "Failed to fetch chats" });
+  } finally {
+    client.release();
+  }
+});
+
+router.get("/admin/chats/:chatId/messages", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `
+      SELECT
+        id,
+        sender,
+        message,
+        created_at
+      FROM live_chat_messages
+      WHERE chat_id = $1
+      ORDER BY created_at ASC
+      LIMIT 500
+      `,
+      [chatId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch messages:", err);
+    res.status(500).json({ error: "Failed to fetch messages" });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/admin/chats/:chatId/message", async (req, res) => {
+  const { chatId } = req.params;
+  const { message } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `
+      INSERT INTO live_chat_messages (chat_id, sender, message)
+      VALUES ($1, 'support', $2)
+      RETURNING *
+      `,
+      [chatId, message]
+    );
+
+    // 🔔 emit socket event here
+    req.io?.to(chatId).emit("receive_message", rows[0]);
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Failed to send message:", err);
+    res.status(500).json({ error: "Failed to send message" });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/chat/init", async (req, res) => {
+  const { user_id } = req.body;
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `
+      INSERT INTO live_chats (id, user_id)
+      VALUES (gen_random_uuid(), $1)
+      RETURNING *
+      `,
+      [user_id]
+    );
+
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to init chat" });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/chat/init", async (req, res) => {
+  const { user_id } = req.body;
+  const client = await pool.connect();
+
+  try {
+    // Check existing open chat
+    const existing = await client.query(
+      `SELECT * FROM live_chats WHERE user_id = $1 AND status = 'open' LIMIT 1`,
+      [user_id]
+    );
+
+    if (existing.rows.length) {
+      return res.json(existing.rows[0]);
+    }
+
+    const { rows } = await client.query(
+      `INSERT INTO live_chats (id, user_id)
+       VALUES (gen_random_uuid(), $1)
+       RETURNING *`,
+      [user_id]
+    );
+
+    res.json(rows[0]);
+  } finally {
+    client.release();
+  }
+});
+
+router.get("/chat/:chatId/messages", async (req, res) => {
+  const { chatId } = req.params;
+  const { user_id } = req.user; // from auth middleware
+  const client = await pool.connect();
+
+  try {
+    // Ownership check
+    const chat = await client.query(
+      `SELECT 1 FROM live_chats WHERE id = $1 AND user_id = $2`,
+      [chatId, user_id]
+    );
+
+    if (!chat.rowCount) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const { rows } = await client.query(
+      `SELECT sender, message, created_at
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       ORDER BY created_at ASC
+       LIMIT 500`,
+      [chatId]
+    );
+
+    res.json(rows);
+  } finally {
+    client.release();
+  }
+});
+
+
+router.post("/chat/:chatId/message", async (req, res) => {
+  const { chatId } = req.params;
+  const { message } = req.body;
+  const { user_id } = req.user;
+  const client = await pool.connect();
+
+  try {
+    // Ownership check
+    const chat = await client.query(
+      `SELECT 1 FROM live_chats WHERE id = $1 AND user_id = $2 AND status = 'open'`,
+      [chatId, user_id]
+    );
+
+    if (!chat.rowCount) {
+      return res.status(403).json({ error: "Chat closed or forbidden" });
+    }
+
+    const { rows } = await client.query(
+      `INSERT INTO live_chat_messages (chat_id, sender, message)
+       VALUES ($1, 'user', $2)
+       RETURNING *`,
+      [chatId, message]
+    );
+
+    // socket emit later
+    req.io?.to(chatId).emit("receive_message", rows[0]);
+
+    res.json(rows[0]);
+  } finally {
+    client.release();
+  }
+});
+
+
+
 export default router;

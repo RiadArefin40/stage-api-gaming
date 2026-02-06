@@ -4,6 +4,7 @@ import axiosRetry from 'axios-retry';
 import timeout from 'connect-timeout';
 import cors from "cors";
 import bodyParser from "body-parser";
+import { Server } from "socket.io";
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import depositRoutes from "./routes/deposit.routes.js";
@@ -28,6 +29,39 @@ initAffiliateCron();
 const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";  
 const AES_KEY = "60fe91cdffa48eeca70403b3656446";    
 const app = express();
+
+/* ---------- SOCKET ---------- */
+const io = new Server(server, {
+  cors: {
+    origin: "*", // lock this in prod
+    methods: ["GET", "POST"],
+  },
+});
+
+/* Attach io to req */
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+/* ---------- SOCKET EVENTS ---------- */
+io.on("connection", (socket) => {
+  console.log("🟢 socket connected:", socket.id);
+
+  socket.on("join_chat", ({ chatId }) => {
+    if (!chatId) return;
+    socket.join(chatId);
+    console.log(`📩 joined chat room ${chatId}`);
+  });
+
+  socket.on("leave_chat", ({ chatId }) => {
+    socket.leave(chatId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("🔴 socket disconnected:", socket.id);
+  });
+});
 axiosRetry(axios, { retries: 5, retryDelay: axiosRetry.exponentialDelay });
 
 app.use(
