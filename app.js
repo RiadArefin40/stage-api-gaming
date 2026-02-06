@@ -63,42 +63,30 @@ const io = new Server(server, {
   },
 });
 
+
+// ----------------- SOCKET.IO -----------------
 io.on("connection", (socket) => {
-  console.log("✅ Socket connected:", socket.id);
+  console.log("✅ New socket connected:", socket.id);
 
   // Join a chat room
   socket.on("join_chat", ({ chatId }) => {
     socket.join(chatId);
-    console.log(`Socket ${socket.id} joined chat room ${chatId}`);
+    console.log(`[DEBUG] Socket ${socket.id} joined chat room: ${chatId}`);
   });
 
   // Leave a chat room
   socket.on("leave_chat", ({ chatId }) => {
     socket.leave(chatId);
-    console.log(`Socket ${socket.id} left chat room ${chatId}`);
+    console.log(`[DEBUG] Socket ${socket.id} left chat room: ${chatId}`);
   });
 
-  // Handle sending a message
-  socket.on("send_message", async ({ chatId, message }) => {
-    try {
-      // Save to DB
-      const { rows } = await pool.query(
-        `INSERT INTO live_chat_messages (chat_id, sender, message)
-         VALUES ($1, $2, $3)
-         RETURNING *`,
-        [chatId, message.sender, message.message]
-      );
+  // When a user/admin sends a message
+  socket.on("send_message", ({ chatId, message }) => {
+    console.log("[DEBUG] send_message received:", message);
 
-      const savedMsg = rows[0];
-
-      // Include chat_id for client-side filtering
-      savedMsg.chat_id = chatId;
-
-      // Emit to everyone in the room (admin + user)
-      io.to(chatId).emit("receive_message", savedMsg);
-    } catch (err) {
-      console.error("Failed to save/send message:", err);
-    }
+    // Emit to everyone in the room except sender
+    socket.to(chatId).emit("receive_message", message);
+    console.log(`[DEBUG] Message emitted to room ${chatId}`);
   });
 
   socket.on("disconnect", (reason) => {
