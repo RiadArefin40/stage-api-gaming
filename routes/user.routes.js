@@ -2381,7 +2381,7 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
 
 // ----------------- ROUTES -----------------
 // Example: init chat for user
-app.post("/chat/init", async (req, res) => {
+router.post("/chat/init", async (req, res) => {
   const { user_id } = req.body;
   const client = await pool.connect();
   try {
@@ -2404,7 +2404,7 @@ app.post("/chat/init", async (req, res) => {
 });
 
 // Example: get messages
-app.get("/chat/:user_id/:chatId/messages", async (req, res) => {
+router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
   const { chatId, user_id } = req.params;
   const client = await pool.connect();
   try {
