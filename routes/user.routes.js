@@ -2422,7 +2422,12 @@ router.post("/chat/init", async (req, res) => {
     );
 
     res.json(rows[0]);
-  } finally {
+  }
+  catch(e){
+    console.log(e);
+  }
+  
+  finally {
     client.release();
   }
 });
