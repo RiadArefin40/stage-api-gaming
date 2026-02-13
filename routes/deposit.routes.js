@@ -33,7 +33,7 @@ const autoApproveDeposit = async (depositId) => {
     const depositAmount = Number(deposit.amount);
     const bonusAmount = Number(deposit.bonus_amount || 0);
     const realDepositAmount = depositAmount - bonusAmount;
-
+console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=${depositAmount}, Bonus=${bonusAmount}, RealAmount=${realDepositAmount}`);
     if (!txnId || realDepositAmount <= 0) {
       await client.query(
         `UPDATE deposits
