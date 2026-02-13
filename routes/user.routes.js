@@ -1846,6 +1846,45 @@ router.get("/game-categories/:id/games", async (req, res) => {
   }
 });
 
+router.get("/providers/:providerId/games/:categoryId?", async (req, res) => {
+  try {
+    const { providerId, categoryId } = req.params;
+
+    // Check provider exists
+    const providerCheck = await pool.query(
+      `SELECT id, title FROM games WHERE id = $1 AND is_provider = true`,
+      [providerId]
+    );
+    if (!providerCheck.rows.length) {
+      return res.status(404).json({ message: "Provider not found" });
+    }
+
+    // Build query
+    let query = `SELECT * FROM games WHERE parent_id = $1 AND is_active = true`;
+    const params = [providerId];
+
+    if (categoryId) {
+      query += ` AND category_id = $2`;
+      params.push(categoryId);
+    }
+
+    query += ` ORDER BY position ASC, id DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      provider_id: providerId,
+      provider_title: providerCheck.rows[0].title,
+      category_id: categoryId || null,
+      total_games: result.rows.length,
+      games: result.rows,
+    });
+  } catch (err) {
+    console.error("FETCH PROVIDER GAMES ERROR:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 
 
 
