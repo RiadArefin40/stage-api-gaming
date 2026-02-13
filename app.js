@@ -655,7 +655,7 @@ export function decrypt(encryptedBase64) {
 
 app.post("/launch_game", async (req, res) => {
   const { userName, game_uid, credit_amount, game_type } = req.body;
-  const SERVER_URL = "https://bulkapi.in";
+  const SERVER_URL = "https://bulkapi.org";
 
   console.log("🚀 Launch game request received:", {
     userName,
