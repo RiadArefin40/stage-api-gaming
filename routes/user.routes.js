@@ -1,7 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { generateUniqueReferralCode } from "../utils/referral.js";
-import { io } from "../app.js";
+
 const router = express.Router();
 const ALLOWED_PLATFORMS = ["telegram", "whatsapp", "messenger"];
 import multer from "multer";
