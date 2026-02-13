@@ -28,8 +28,8 @@ initAffiliateCron();
 
 
 // ---------------- CONFIG ----------------
-const API_TOKEN = "ceb57a3c-4685-4d32-9379-c2424f";
-const AES_KEY = "60fe91cdffa48eeca70403b3656446";
+const API_TOKEN = "bfdb7618473145a3be930781c89d70";
+const AES_KEY = "7c35bab07c2677277287c95862ff65";
 
 // ---------------- EXPRESS APP ----------------
 const app = express();
