@@ -2359,21 +2359,20 @@ router.post("/spin", async (req, res) => {
     );
     const spinCost = costResult.rows[0].spin_cost;
 
-    // 2️⃣ Check user points
-    const userResult = await pool.query(
-      "SELECT vip_points, balance FROM users WHERE id=$1 FOR UPDATE",
+    // 2️⃣ Get user's VIP points from user_bets table
+    const vipResult = await pool.query(
+      "SELECT vip_points FROM user_bets WHERE user_id=$1 FOR UPDATE",
       [user_id]
     );
 
-    const user = userResult.rows[0];
+    if (vipResult.rows.length === 0) throw new Error("User bets not found");
+    const vipPoints = vipResult.rows[0].vip_points;
 
-    if (user.vip_points < spinCost) {
-      throw new Error("Not enough points");
-    }
+    if (vipPoints < spinCost) throw new Error("Not enough VIP points");
 
     // 3️⃣ Deduct spin cost
     await pool.query(
-      "UPDATE users SET vip_points = vip_points - $1 WHERE id=$2",
+      "UPDATE user_bets SET vip_points = vip_points - $1 WHERE user_id=$2",
       [spinCost, user_id]
     );
 
@@ -2383,33 +2382,42 @@ router.post("/spin", async (req, res) => {
     );
     const prizes = prizeResult.rows;
 
-    // 5️⃣ Weighted random
-    const weighted = [];
-    prizes.forEach(p => {
-      for (let i = 0; i < p.probability; i++) {
-        weighted.push(p);
-      }
-    });
+    if (prizes.length === 0) throw new Error("No active prizes");
 
-    const winner = weighted[Math.floor(Math.random() * weighted.length)];
+    // 5️⃣ Weighted random with fractional probability
+    const totalProb = prizes.reduce((sum, p) => sum + parseFloat(p.probability), 0);
+    const rand = Math.random();
+    let cumulative = 0;
+    let winner = null;
+
+    for (const p of prizes) {
+      cumulative += parseFloat(p.probability) / totalProb;
+      if (rand <= cumulative) {
+        winner = p;
+        break;
+      }
+    }
+
+    if (!winner) winner = prizes[prizes.length - 1]; // fallback
 
     // 6️⃣ Give reward
     if (winner.type === "amount") {
+      // main balance in users table
       await pool.query(
-        "UPDATE users SET balance = balance + $1 WHERE id=$2",
+        "UPDATE users SET wallet = wallet + $1 WHERE id=$2",
         [winner.value, user_id]
       );
     } else {
+      // VIP points in user_bets table
       await pool.query(
-        "UPDATE users SET vip_points = vip_points + $1 WHERE id=$2",
+        "UPDATE user_bets SET vip_points = vip_points + $1 WHERE user_id=$2",
         [winner.value, user_id]
       );
     }
 
-    // 7️⃣ Save history
+    // 7️⃣ Save spin history
     await pool.query(
-      `INSERT INTO spin_history
-       (user_id, prize_id, prize_type, prize_value)
+      `INSERT INTO spin_history (user_id, prize_id, prize_type, prize_value)
        VALUES ($1,$2,$3,$4)`,
       [user_id, winner.id, winner.type, winner.value]
     );
