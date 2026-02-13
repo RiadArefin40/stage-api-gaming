@@ -2295,6 +2295,7 @@ router.get('/admin/sms', async (req, res) => {
 
 
 // Get all chats (with unread count)
+// Get all chats with unread count
 router.get("/admin/chats", async (req, res) => {
   const client = await pool.connect();
   try {
@@ -2304,18 +2305,15 @@ router.get("/admin/chats", async (req, res) => {
         c.user_id,
         c.status,
         MAX(m.created_at) AS last_message_at,
-        COUNT(*) FILTER (WHERE m.sender = 'user' AND m.is_read = FALSE) AS unread_count,
-        MAX(m.message) FILTER (WHERE m.created_at = MAX(m.created_at)) AS last_message
+        COUNT(CASE WHEN m.sender = 'user' AND m.is_read = FALSE THEN 1 END) AS unread_count
       FROM live_chats c
       LEFT JOIN live_chat_messages m ON m.chat_id = c.id
-      GROUP BY c.id
+      GROUP BY c.id, c.user_id, c.status
       ORDER BY last_message_at DESC
       LIMIT 200
     `);
     res.json(rows);
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 });
 
 // Get messages for a chat
