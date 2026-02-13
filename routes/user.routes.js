@@ -2614,4 +2614,30 @@ router.delete("/delete-wheel-prize/:id", async (req, res) => {
   }
 });
 
+router.put("/update-wheel-prize/:id", async (req, res) => {
+  const { id } = req.params;
+  const { type, value, probability } = req.body;
+
+  if (!type || value === undefined) {
+    return res.status(400).json({ error: "Type and value are required" });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE wheel_prizes
+       SET type = $1,
+           value = $2,
+           probability = $3
+       WHERE id = $4`,
+      [type, value, probability || 1, id]
+    );
+
+    res.json({ message: "Prize updated successfully" });
+
+  } catch (err) {
+    console.error("update-wheel-prize error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;
