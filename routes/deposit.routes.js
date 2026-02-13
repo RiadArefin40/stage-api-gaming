@@ -70,39 +70,22 @@ const autoApproveDeposit = async (depositId) => {
        ORDER BY id DESC`
     );
 
-    console.log("=== ALL Bkash/Nagad/Rocket SMS ===");
-    allSms.rows.forEach((sms) => {
-      let txns = [];
-      const sender = sms.sender.toLowerCase();
 
-      if (sender.includes("bkash")) {
-        const match = sms.message.match(/TrxID\s*[: ]?\s*([A-Z0-9]+)/gi);
-        if (match) txns = match.map((m) => m.split(/\s/).pop());
-      } else if (sender.includes("nagad")) {
-        const match = sms.message.match(/TxnID\s*[: ]?\s*([A-Z0-9]+)/gi);
-        if (match) txns = match.map((m) => m.split(/\s/).pop());
-      } else if (sender.includes("16216") || sender.includes("rocket")) {
-        const match = sms.message.match(/TxnId\s*[: ]?\s*([A-Z0-9]+)/gi);
-        if (match) txns = match.map((m) => m.split(/\s/).pop());
-      }
-
-      console.log(`SMS ID: ${sms.id}, Sender: ${sms.sender}, TxnID(s): ${txns.join(", ")}`);
-    });
 
     // 4️⃣ Search matching SMS
     console.log(`🔍 Searching SMS for TxnID ${txnId}`);
-    const smsResult = await client.query(
-      `SELECT * FROM incoming_sms
-       WHERE message ~* $1
-         AND (LOWER(sender) LIKE '%bkash%' 
-              OR LOWER(sender) LIKE '%nagad%' 
-              OR LOWER(sender) LIKE '%16216%' 
-              OR LOWER(sender) LIKE '%rocket%')
-         AND (is_used = false OR is_used IS NULL)
-       ORDER BY id DESC
-       LIMIT 1`,
-      [`${txnId}`]
-    );
+const smsResult = await client.query(
+  `SELECT * FROM incoming_sms
+   WHERE message ~* $1
+     AND (LOWER(sender) LIKE '%bkash%' 
+          OR LOWER(sender) LIKE '%nagad%' 
+          OR LOWER(sender) LIKE '%16216%' 
+          OR LOWER(sender) LIKE '%rocket%')
+     AND (is_used = false OR is_used IS NULL)
+   ORDER BY id DESC
+   LIMIT 1`,
+  [`${txnId}`] // remove \b boundaries for more flexible matching
+);
 
     if (!smsResult.rows.length) {
       await client.query(
@@ -141,23 +124,41 @@ const autoApproveDeposit = async (depositId) => {
       return;
     }
 
-    // 6️⃣ Mark SMS as used
+    // Mark SMS as used
     await client.query(`UPDATE incoming_sms SET is_used = true WHERE id=$1`, [sms.id]);
     console.log(`✅ Local SMS verified for TxnID ${txnId}, SMS ID: ${sms.id}`);
 
-    // 7️⃣ FINALIZE deposit directly (skip external payout)
-    await client.query(
-      `UPDATE deposits SET status='approved' WHERE id=$1`,
-      [deposit.id]
-    );
 
-    await client.query(
-      `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
-      [deposit.amount, deposit.user_id]
-    );
 
-    await client.query("COMMIT");
-    console.log(`✅ Deposit ${deposit.id} auto-approved successfully`);
+    // 7️⃣ CONFIRM PAYOUT
+    // const confirm = await confirmDeposit(deposit.external_payout_id);
+    const payoutAmount = Number(confirm?.data?.amount);
+
+    // if (!confirm?.success || Number.isNaN(payoutAmount) || payoutAmount !== realAmount) {
+    //   await client.query(
+    //     `UPDATE deposits SET status='failed', retry_count = retry_count + 1, failure_reason='Payout mismatch' WHERE id=$1`,
+    //     [deposit.id]
+    //   );
+    //   await client.query("COMMIT");
+    //   return;
+    // }
+
+    // 8️⃣ FINALIZE
+// 8️⃣ FINALIZE directly
+await client.query(
+  `UPDATE deposits SET status='approved' WHERE id=$1`,
+  [deposit.id]
+);
+
+await client.query(
+  `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+  [deposit.amount, deposit.user_id]
+);
+
+await client.query("COMMIT");
+console.log(`✅ Deposit ${deposit.id} auto-approved successfully`);
+
+
 
   } catch (err) {
     await client.query("ROLLBACK");
