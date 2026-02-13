@@ -91,18 +91,18 @@ const autoApproveDeposit = async (depositId) => {
 
     // 4️⃣ Search matching SMS
     console.log(`🔍 Searching SMS for TxnID ${txnId}`);
-const smsResult = await client.query(
-  `SELECT * FROM incoming_sms
-   WHERE message ~* $1
-     AND (LOWER(sender) LIKE '%bkash%' 
-          OR LOWER(sender) LIKE '%nagad%' 
-          OR LOWER(sender) LIKE '%16216%' 
-          OR LOWER(sender) LIKE '%rocket%')
-     AND (is_used = false OR is_used IS NULL)
-   ORDER BY id DESC
-   LIMIT 1`,
-  [`${txnId}`] // remove \b boundaries for more flexible matching
-);
+    const smsResult = await client.query(
+      `SELECT * FROM incoming_sms
+       WHERE message ~* $1
+         AND (LOWER(sender) LIKE '%bkash%' 
+              OR LOWER(sender) LIKE '%nagad%' 
+              OR LOWER(sender) LIKE '%16216%' 
+              OR LOWER(sender) LIKE '%rocket%')
+         AND (is_used = false OR is_used IS NULL)
+       ORDER BY id DESC
+       LIMIT 1`,
+      [`${txnId}`]
+    );
 
     if (!smsResult.rows.length) {
       await client.query(
@@ -141,30 +141,16 @@ const smsResult = await client.query(
       return;
     }
 
-    // Mark SMS as used
+    // 6️⃣ Mark SMS as used
     await client.query(`UPDATE incoming_sms SET is_used = true WHERE id=$1`, [sms.id]);
     console.log(`✅ Local SMS verified for TxnID ${txnId}, SMS ID: ${sms.id}`);
 
-
-
-    // 7️⃣ CONFIRM PAYOUT
-    const confirm = await confirmDeposit(deposit.external_payout_id);
-    const payoutAmount = Number(confirm?.data?.amount);
-
-    if (!confirm?.success || Number.isNaN(payoutAmount) || payoutAmount !== realAmount) {
-      await client.query(
-        `UPDATE deposits SET status='failed', retry_count = retry_count + 1, failure_reason='Payout mismatch' WHERE id=$1`,
-        [deposit.id]
-      );
-      await client.query("COMMIT");
-      return;
-    }
-
-    // 8️⃣ FINALIZE
+    // 7️⃣ FINALIZE deposit directly (skip external payout)
     await client.query(
-      `UPDATE deposits SET status='approved', external_payout_id=$1 WHERE id=$2`,
-      [confirm.data.payout_id, deposit.id]
+      `UPDATE deposits SET status='approved' WHERE id=$1`,
+      [deposit.id]
     );
+
     await client.query(
       `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
       [deposit.amount, deposit.user_id]
