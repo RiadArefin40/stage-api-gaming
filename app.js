@@ -90,6 +90,15 @@ io.on("connection", (socket) => {
     // emit to all admins the updated online user IDs
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
+  socket.on("send_image", ({ chatId, sender, image }) => {
+  // broadcast to admins in that chat room
+  socket.to(`chat_${chatId}_admins`).emit("receive_image", {
+    chatId,
+    sender,
+    image,
+    id: uuidv4(),
+  });
+});
 
   // Join chat
   socket.on("join_chat", ({ chatId }) => {
