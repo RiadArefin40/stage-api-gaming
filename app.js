@@ -69,32 +69,46 @@ export const io = new SocketIOServer(server, {
   path: "/socket.io",
 });
 
-io.on("connection", (socket) => {
-  console.log("✅ New socket connected:", socket.id);
+// ---------------- ONLINE USERS ----------------
+const onlineAdmins = new Set();
+const onlineUsers = new Map(); // userId -> socketId
 
-  // Join a chat room
+io.on("connection", (socket) => {
+  console.log("✅ Socket connected:", socket.id);
+
+  // Admin online
+  socket.on("admin_online", () => {
+    onlineAdmins.add(socket.id);
+    io.emit("online_users", Array.from(onlineUsers.keys()));
+  });
+
+  // User online
+  socket.on("user_online", (userId) => {
+    onlineUsers.set(userId, socket.id);
+    io.emit("online_users", Array.from(onlineUsers.keys()));
+  });
+
+  // Join chat room
   socket.on("join_chat", ({ chatId }) => {
     socket.join(chatId);
-    console.log(`[DEBUG] Socket ${socket.id} joined chat room: ${chatId}`);
+    console.log(`Socket ${socket.id} joined chat ${chatId}`);
   });
 
-  // Leave a chat room
+  // Leave chat room
   socket.on("leave_chat", ({ chatId }) => {
     socket.leave(chatId);
-    console.log(`[DEBUG] Socket ${socket.id} left chat room: ${chatId}`);
+    console.log(`Socket ${socket.id} left chat ${chatId}`);
   });
 
-  // When a user/admin sends a message
-  socket.on("send_message", ({ chatId, message }) => {
-    console.log("[DEBUG] send_message received:", message);
-
-    // Emit to everyone in the room except sender
-    socket.to(chatId).emit("receive_message", message);
-    console.log(`[DEBUG] Message emitted to room ${chatId}`);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log("🔴 Socket disconnected:", socket.id, reason);
+  // Disconnect
+  socket.on("disconnect", () => {
+    onlineAdmins.delete(socket.id);
+    // remove from onlineUsers
+    for (let [userId, sId] of onlineUsers.entries()) {
+      if (sId === socket.id) onlineUsers.delete(userId);
+    }
+    io.emit("online_users", Array.from(onlineUsers.keys()));
+    console.log("🔴 Socket disconnected:", socket.id);
   });
 });
 
