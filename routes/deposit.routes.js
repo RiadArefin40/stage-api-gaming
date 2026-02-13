@@ -92,8 +92,8 @@ const autoApproveDeposit = async (depositId) => {
 
     // 4️⃣ Extract amount from SMS (if possible)
     let smsAmount = null;
-    const amtMatch = sms.message.match(/[\d,]+(?:\.\d+)?/); // pick first number in SMS
-    if (amtMatch) smsAmount = Number(amtMatch[0].replace(/,/g, ""));
+const amtMatch = sms.message.match(/Tk\s*([\d,]+\.\d+)/i);
+if (amtMatch) smsAmount = Number(amtMatch[1].replace(/,/g, ""));
 
     console.log(`💵 Extracted SMS amount: ${smsAmount}`);
 
@@ -105,16 +105,16 @@ const autoApproveDeposit = async (depositId) => {
 
 
 
-    // 7️⃣ Approve deposit and update wallet
-    await client.query(
-      `UPDATE deposits SET status='approved',  WHERE id=$2`,
-      [ deposit.id]
-    );
+ // Approve deposit and update wallet
+await client.query(
+  `UPDATE deposits SET status='approved' WHERE id=$1`,
+  [deposit.id]
+);
 
-    await client.query(
-      `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
-      [smsAmount, deposit.user_id]
-    );
+await client.query(
+  `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+  [smsAmount, deposit.user_id]
+);
       await client.query("COMMIT");
       return;
     }
@@ -126,15 +126,16 @@ const autoApproveDeposit = async (depositId) => {
 
 
     // 7️⃣ Approve deposit and update wallet
-    await client.query(
-      `UPDATE deposits SET status='approved',  WHERE id=$2`,
-      [ deposit.id]
-    );
+// Approve deposit and update wallet
+await client.query(
+  `UPDATE deposits SET status='approved' WHERE id=$1`,
+  [deposit.id]
+);
 
-    await client.query(
-      `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
-      [depositAmount, deposit.user_id]
-    );
+await client.query(
+  `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+  [smsAmount, deposit.user_id]
+);
 
     await client.query("COMMIT");
     console.log(`🎉 Deposit ID ${deposit.id} auto-approved successfully`);
