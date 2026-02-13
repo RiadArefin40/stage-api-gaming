@@ -2539,7 +2539,7 @@ router.post("/toggle-prize", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-router.get("/admin/wheel-prizes", async (req, res) => {
+router.get("/wheel-prizes", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, type, value, probability, active
@@ -2571,6 +2571,45 @@ router.post("/update-prize", async (req, res) => {
 
   } catch (err) {
     console.error("update-prize error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+router.post("/add-wheel-prize", async (req, res) => {
+  const { type, value, probability } = req.body;
+
+  if (!type || !value) {
+    return res.status(400).json({ error: "Type and value required" });
+  }
+
+  try {
+    // Check current number of prizes
+    const countResult = await pool.query(`SELECT COUNT(*) FROM wheel_prizes`);
+    const count = parseInt(countResult.rows[0].count);
+    if (count >= 5) {
+      return res.status(400).json({ error: "Maximum 5 prizes allowed" });
+    }
+
+    await pool.query(
+      `INSERT INTO wheel_prizes (type, value, probability, active)
+       VALUES ($1, $2, $3, true)`,
+      [type, value, probability || 1]
+    );
+
+    res.json({ message: "Prize added" });
+  } catch (err) {
+    console.error("add-wheel-prize error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.delete("/delete-wheel-prize/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query(`DELETE FROM wheel_prizes WHERE id=$1`, [id]);
+    res.json({ message: "Prize deleted" });
+  } catch (err) {
+    console.error("delete-wheel-prize error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
