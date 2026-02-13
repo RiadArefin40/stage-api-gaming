@@ -70,7 +70,7 @@ console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=$
       await client.query("COMMIT");
       return;
     }
-
+console.log(`🔍 Searching SMS for TxnID ${txnId}`);
     // Find matching unused SMS from allowed senders
     const smsResult = await client.query(
       `SELECT * FROM incoming_sms
