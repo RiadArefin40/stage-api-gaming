@@ -91,31 +91,24 @@ io.on("connection", (socket) => {
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
   // Send image
-  socket.on("send_image", ({ chatId, sender, image }) => {
-    const imgMsg = {
-      chatId,
-      sender,
-      image,
-      id: uuidv4(),
-      type: "image",
-      created_at: new Date(),
-    };
-
+  // ---------------- IMAGE MESSAGE ----------------
+  socket.on("send_image", ({ chatId, sender, image, id }) => {
+    const payload = { chatId, sender, image, id: id || uuidv4(), created_at: new Date().toISOString() };
+    socket.to(`chat_${chatId}_admins`).emit("receive_image", payload);
     console.log(`📷 Image sent in chat ${chatId} by ${sender}`);
-
-    // emit to everyone in that chat room
-    io.to(`chat_${chatId}`).emit("receive_image", imgMsg);
   });
 
   // Join chat
+  // Join chat rooms (for admin)
   socket.on("join_chat", ({ chatId }) => {
-    socket.join(chatId);
+    socket.join(`chat_${chatId}_admins`);
+  });
+  socket.on("leave_chat", ({ chatId }) => {
+    socket.leave(`chat_${chatId}_admins`);
   });
 
   // Leave chat
-  socket.on("leave_chat", ({ chatId }) => {
-    socket.leave(chatId);
-  });
+
 
   // Disconnect
   socket.on("disconnect", () => {
