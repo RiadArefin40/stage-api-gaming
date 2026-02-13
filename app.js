@@ -59,12 +59,16 @@ const server = app.listen(22000, () =>
 
 
 
-// ----------------- SOCKET.IO -----------------
-// ----------------- SOCKET.IO -----------------
-export const io = new SocketIOServer(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
   path: "/socket.io",
 });
+
+// ---------------- DATABASE ----------------
+
 
 // ---------------- ONLINE USERS ----------------
 const onlineAdmins = new Set();
@@ -108,6 +112,201 @@ io.on("connection", (socket) => {
     console.log("🔴 Socket disconnected:", socket.id);
   });
 });
+
+// ----------------- ADMIN APIs -----------------
+
+// Get all chats (with unread count)
+app.get("/admin/chats", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(`
+      SELECT
+        c.id,
+        c.user_id,
+        c.status,
+        MAX(m.created_at) AS last_message_at,
+        COUNT(CASE WHEN m.sender = 'user' AND m.is_read = FALSE THEN 1 END) AS unread_count
+      FROM live_chats c
+      LEFT JOIN live_chat_messages m ON m.chat_id = c.id
+      GROUP BY c.id, c.user_id, c.status
+      ORDER BY last_message_at DESC
+      LIMIT 200
+    `);
+    res.json(rows);
+  } finally { client.release(); }
+});
+
+// Get messages for a chat
+app.get("/admin/chats/:chatId/messages", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT id, sender, message, created_at, is_read, chat_id
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       ORDER BY created_at ASC`,
+      [chatId]
+    );
+    res.json(rows);
+  } finally { client.release(); }
+});
+
+// Admin send message
+app.post("/admin/chats/:chatId/message", async (req, res) => {
+  const { chatId } = req.params;
+  const { message } = req.body;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `INSERT INTO live_chat_messages (chat_id, sender, message)
+       VALUES ($1, 'support', $2)
+       RETURNING *`,
+      [chatId, message]
+    );
+    const savedMsg = rows[0];
+
+    // Emit message to chat room
+    io.to(chatId).emit("receive_message", savedMsg);
+
+    // Emit unread count to user if online
+    const { rows: countRows } = await client.query(
+      `SELECT COUNT(*) AS unread
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       AND sender = 'support'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+    const unreadCount = Number(countRows[0].unread);
+
+    for (let [userId, sId] of onlineUsers.entries()) {
+      const userChat = chatId; // assuming chatId corresponds to user's active chat
+      io.to(sId).emit("unread_count", { chatId: userChat, count: unreadCount });
+    }
+
+    res.json(savedMsg);
+  } finally { client.release(); }
+});
+
+// Mark all messages from user as read
+app.post("/admin/chats/:chatId/read", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE live_chat_messages
+       SET is_read = TRUE
+       WHERE chat_id = $1
+       AND sender = 'user'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+
+    const { rows } = await client.query(
+      `SELECT COUNT(*) AS unread
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       AND sender = 'user'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+
+    res.json({ success: true, unread_count: Number(rows[0].unread) });
+  } finally { client.release(); }
+});
+
+// ----------------- USER APIs -----------------
+
+// Init chat
+app.post("/chat/init", async (req, res) => {
+  const { user_id } = req.body;
+  const client = await pool.connect();
+  try {
+    const existing = await client.query(
+      `SELECT * FROM live_chats WHERE user_id = $1 AND status='open' LIMIT 1`,
+      [user_id]
+    );
+    if (existing.rows.length) return res.json(existing.rows[0]);
+
+    const { rows } = await client.query(
+      `INSERT INTO live_chats (id, user_id) VALUES (gen_random_uuid(), $1) RETURNING *`,
+      [user_id]
+    );
+    res.json(rows[0]);
+  } finally { client.release(); }
+});
+
+// Get messages
+app.get("/chat/:user_id/:chatId/messages", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT id, sender, message, created_at, is_read
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       ORDER BY created_at ASC`,
+      [chatId]
+    );
+    res.json(rows);
+  } finally { client.release(); }
+});
+
+// User send message
+app.post("/chat/:user_id/:chatId/message", async (req, res) => {
+  const { chatId } = req.params;
+  const { message } = req.body;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `INSERT INTO live_chat_messages (chat_id, sender, message)
+       VALUES ($1, 'user', $2)
+       RETURNING *`,
+      [chatId, message]
+    );
+    const savedMsg = rows[0];
+
+    io.to(chatId).emit("receive_message", savedMsg);
+    res.json(savedMsg);
+  } finally { client.release(); }
+});
+
+// Mark messages from support as read
+app.post("/chat/:user_id/:chatId/read", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE live_chat_messages
+       SET is_read = TRUE
+       WHERE chat_id = $1
+       AND sender = 'support'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+    res.json({ success: true });
+  } finally { client.release(); }
+});
+
+// User unread count
+app.get("/chat/:user_id/unread-count", async (req, res) => {
+  const { user_id } = req.params;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT COUNT(*) AS unread
+       FROM live_chat_messages m
+       JOIN live_chats c ON c.id = m.chat_id
+       WHERE c.user_id = $1
+       AND m.sender = 'support'
+       AND m.is_read = FALSE`,
+      [user_id]
+    );
+    res.json({ unread: Number(rows[0].unread) });
+  } finally { client.release(); }
+});
+
 
 
 
