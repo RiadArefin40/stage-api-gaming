@@ -2428,4 +2428,43 @@ router.post("/spin", async (req, res) => {
   }
 });
 
+router.get("/wheel-prizes", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, type, value
+       FROM wheel_prizes
+       WHERE active = true
+       ORDER BY id ASC`
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("wheel-prizes error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/wheel-settings", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT spin_cost
+       FROM wheel_settings
+       WHERE id = 1`
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Wheel settings not found" });
+    }
+
+    res.json({
+      spin_cost: result.rows[0].spin_cost
+    });
+
+  } catch (err) {
+    console.error("wheel-settings error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
