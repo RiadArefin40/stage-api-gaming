@@ -2431,7 +2431,7 @@ router.post("/spin", async (req, res) => {
 router.get("/wheel-prizes", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, type, value
+      `SELECT id, type, value, probability
        FROM wheel_prizes
        WHERE active = true
        ORDER BY id ASC`
