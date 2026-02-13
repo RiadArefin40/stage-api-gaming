@@ -98,10 +98,10 @@ const smsResult = await client.query(
           OR LOWER(sender) LIKE '%nagad%' 
           OR LOWER(sender) LIKE '%16216%' 
           OR LOWER(sender) LIKE '%rocket%')
-     AND (is_used = false OR is_used IS NULL OR is_used = 0)
+     AND (is_used = false OR is_used IS NULL)
    ORDER BY id DESC
    LIMIT 1`,
-  [`(TxnID|TrxID)[: ]*${txnId}`]
+  [`${txnId}`] // remove \b boundaries for more flexible matching
 );
 
     if (!smsResult.rows.length) {
