@@ -795,6 +795,28 @@ router.get("/userbet/:user_id", async (req, res) => {
   }
 });
 
+router.get("/user-total-vip/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(vip_point), 0) AS total_vip_points
+       FROM user_bets
+       WHERE user_id = $1`,
+      [user_id]
+    );
+
+    res.json({
+      user_id,
+      total_vip_points: result.rows[0].total_vip_points
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 // social link
 
