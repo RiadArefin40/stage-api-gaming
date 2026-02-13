@@ -1846,35 +1846,38 @@ router.get("/game-categories/:id/games", async (req, res) => {
   }
 });
 
-router.get("/providers/:providerId/games/:categoryId?", async (req, res) => {
+// GET games under a provider, optionally filtered by category
+router.get("/providers/:providerId/games", async (req, res) => {
   try {
-    const { providerId, categoryId } = req.params;
+    const { providerId } = req.params;
+    const { categoryId } = req.query; // optional
 
-    // Check provider exists
-    const providerCheck = await pool.query(
-      `SELECT id, title FROM games WHERE id = $1 AND is_provider = true`,
-      [providerId]
-    );
-    if (!providerCheck.rows.length) {
-      return res.status(404).json({ message: "Provider not found" });
+    // Validate providerId
+    if (!providerId) {
+      return res.status(400).json({ message: "Provider ID is required" });
     }
 
-    // Build query
-    let query = `SELECT * FROM games WHERE parent_id = $1 AND is_active = true`;
-    const params = [providerId];
+    // Build dynamic query
+    let query = `
+      SELECT *
+      FROM games
+      WHERE parent_id = $1
+        AND is_active = true
+    `;
+    const values = [providerId];
 
     if (categoryId) {
-      query += ` AND category_id = $2`;
-      params.push(categoryId);
+      query += " AND category_id = $2";
+      values.push(categoryId);
     }
 
-    query += ` ORDER BY position ASC, id DESC`;
+    query += " ORDER BY position ASC, id DESC";
 
-    const result = await pool.query(query, params);
+    // Execute query
+    const result = await pool.query(query, values);
 
     res.json({
       provider_id: providerId,
-      provider_title: providerCheck.rows[0].title,
       category_id: categoryId || null,
       total_games: result.rows.length,
       games: result.rows,
