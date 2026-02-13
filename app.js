@@ -66,55 +66,49 @@ export const io = new SocketIOServer(server, {
   path: "/socket.io",
 });
 
-// ---------------- ONLINE TRACKING ----------------
-const onlineAdmins = new Set();      // socket.id
-const onlineUsers = new Map();       // userId -> socket.id
+// ---------------- ONLINE USERS ----------------
+const onlineAdmins = new Set();
+const onlineUsers = new Map(); // userId -> socketId
 
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
 
-  // Admin comes online
+  // Admin online
   socket.on("admin_online", () => {
     onlineAdmins.add(socket.id);
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
 
-  // User comes online
+  // User online
   socket.on("user_online", (userId) => {
     onlineUsers.set(userId, socket.id);
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
 
-  // Join a chat room
-  socket.on("join_chat", ({ chatId, userId }) => {
+  // Join chat room
+  socket.on("join_chat", ({ chatId }) => {
     socket.join(chatId);
-    if (userId) {
-      onlineUsers.set(userId, socket.id);
-      io.emit("online_users", Array.from(onlineUsers.keys()));
-    }
     console.log(`Socket ${socket.id} joined chat ${chatId}`);
   });
 
-  // Leave a chat room
-  socket.on("leave_chat", ({ chatId, userId }) => {
+  // Leave chat room
+  socket.on("leave_chat", ({ chatId }) => {
     socket.leave(chatId);
-    if (userId) {
-      onlineUsers.delete(userId);
-      io.emit("online_users", Array.from(onlineUsers.keys()));
-    }
     console.log(`Socket ${socket.id} left chat ${chatId}`);
   });
 
   // Disconnect
   socket.on("disconnect", () => {
     onlineAdmins.delete(socket.id);
-    for (const [userId, sId] of onlineUsers.entries()) {
+    // remove from onlineUsers
+    for (let [userId, sId] of onlineUsers.entries()) {
       if (sId === socket.id) onlineUsers.delete(userId);
     }
     io.emit("online_users", Array.from(onlineUsers.keys()));
     console.log("🔴 Socket disconnected:", socket.id);
   });
 });
+
 
 
 
