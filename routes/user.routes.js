@@ -2296,7 +2296,7 @@ router.get('/admin/sms', async (req, res) => {
 
 // ---------------- ADMIN ROUTES ----------------
 // Get all chats with unread count
-app.get("/admin/chats", async (req, res) => {
+router.get("/admin/chats", async (req, res) => {
   const client = await pool.connect();
   try {
     const { rows } = await client.query(`
@@ -2317,7 +2317,7 @@ app.get("/admin/chats", async (req, res) => {
 });
 
 // Get chat messages
-app.get("/admin/chats/:chatId/messages", async (req, res) => {
+router.get("/admin/chats/:chatId/messages", async (req, res) => {
   const client = await pool.connect();
   try {
     const { rows } = await client.query(
@@ -2332,7 +2332,7 @@ app.get("/admin/chats/:chatId/messages", async (req, res) => {
 });
 
 // Admin send message
-app.post("/admin/chats/:chatId/message", async (req, res) => {
+router.post("/admin/chats/:chatId/message", async (req, res) => {
   const client = await pool.connect();
   const { message } = req.body;
   const chatId = req.params.chatId;
@@ -2354,7 +2354,7 @@ app.post("/admin/chats/:chatId/message", async (req, res) => {
 });
 
 // Mark user messages as read
-app.post("/admin/chats/:chatId/read", async (req, res) => {
+router.post("/admin/chats/:chatId/read", async (req, res) => {
   const client = await pool.connect();
   const chatId = req.params.chatId;
 
@@ -2384,7 +2384,7 @@ app.post("/admin/chats/:chatId/read", async (req, res) => {
 
 // ---------------- USER ROUTES ----------------
 // Init chat
-app.post("/chat/init", async (req, res) => {
+router.post("/chat/init", async (req, res) => {
   const client = await pool.connect();
   const { user_id } = req.body;
   try {
@@ -2403,7 +2403,7 @@ app.post("/chat/init", async (req, res) => {
 });
 
 // User send message
-app.post("/chat/:user_id/:chatId/message", async (req, res) => {
+router.post("/chat/:user_id/:chatId/message", async (req, res) => {
   const client = await pool.connect();
   const { message } = req.body;
   const chatId = req.params.chatId;
@@ -2424,7 +2424,7 @@ app.post("/chat/:user_id/:chatId/message", async (req, res) => {
 });
 
 // Mark support messages as read
-app.post("/chat/:user_id/:chatId/read", async (req, res) => {
+router.post("/chat/:user_id/:chatId/read", async (req, res) => {
   const client = await pool.connect();
   const chatId = req.params.chatId;
 
@@ -2442,7 +2442,7 @@ app.post("/chat/:user_id/:chatId/read", async (req, res) => {
 });
 
 // User unread count
-app.get("/chat/:user_id/unread-count", async (req, res) => {
+router.get("/chat/:user_id/unread-count", async (req, res) => {
   const client = await pool.connect();
   const user_id = req.params.user_id;
 
