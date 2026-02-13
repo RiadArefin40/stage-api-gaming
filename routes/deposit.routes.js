@@ -91,18 +91,18 @@ const autoApproveDeposit = async (depositId) => {
 
     // 4️⃣ Search matching SMS
     console.log(`🔍 Searching SMS for TxnID ${txnId}`);
-    const smsResult = await client.query(
-      `SELECT * FROM incoming_sms
-       WHERE message ~* $1
-         AND (LOWER(sender) LIKE '%bkash%' 
-              OR LOWER(sender) LIKE '%nagad%' 
-              OR LOWER(sender) LIKE '%16216%' 
-              OR LOWER(sender) LIKE '%rocket%')
-         AND (is_used = false OR is_used IS NULL)
-       ORDER BY id DESC
-       LIMIT 1`,
-      [`\\b${txnId}\\b`] // exact match word boundary
-    );
+const smsResult = await client.query(
+  `SELECT * FROM incoming_sms
+   WHERE message ~* $1
+     AND (LOWER(sender) LIKE '%bkash%' 
+          OR LOWER(sender) LIKE '%nagad%' 
+          OR LOWER(sender) LIKE '%16216%' 
+          OR LOWER(sender) LIKE '%rocket%')
+     AND (is_used = false OR is_used IS NULL OR is_used = 0)
+   ORDER BY id DESC
+   LIMIT 1`,
+  [`(TxnID|TrxID)[: ]*${txnId}`]
+);
 
     if (!smsResult.rows.length) {
       await client.query(
