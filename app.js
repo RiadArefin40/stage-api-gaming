@@ -92,6 +92,7 @@ io.on("connection", (socket) => {
   });
   socket.on("send_image", ({ chatId, sender, image }) => {
   // broadcast to admins in that chat room
+  console.log(`📷 Image sent in chat ${chatId} by ${sender}`);
   socket.to(`chat_${chatId}_admins`).emit("receive_image", {
     chatId,
     sender,
