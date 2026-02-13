@@ -1639,159 +1639,140 @@ router.post(
 
 
 // UPDATE game
-router.put(
-  "/games/:id",
-  gameUpload.single("image"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
+router.put("/games/:id", gameUpload.single("image"), async (req, res) => {
+  try {
+    const { id } = req.params;
 
-      let {
-        category_id,
-        parent_id = null,
-        uid,
-        title,
-        position = 0,
-        is_active = true,
-        is_provider = false,
-      } = req.body;
+    let {
+      category_id,
+      parent_id = null,
+      uid,
+      title,
+      position = 0,
+      is_active = true,
+      is_provider = false,
+    } = req.body;
 
-      /* ---------------- NORMALIZE INPUT ---------------- */
+    /* ---------------- NORMALIZE INPUT ---------------- */
 
-      // normalize UID ("" / whitespace → NULL)
-      uid =
-        typeof uid === "string" && uid.trim() !== ""
-          ? uid.trim()
-          : null;
+    // keep UID as-is or null if empty
+    uid = typeof uid === "string" && uid.trim() !== "" ? uid.trim() : null;
 
-      // normalize booleans (FormData)
-      is_active = is_active === true || is_active === "true";
-      is_provider = is_provider === true || is_provider === "true";
+    // normalize booleans (FormData)
+    is_active = is_active === true || is_active === "true";
+    is_provider = is_provider === true || is_provider === "true";
 
-      // normalize numbers
-      position = Number(position) || 0;
-      category_id = Number(category_id);
-      parent_id = parent_id ? Number(parent_id) : null;
+    // normalize numbers
+    position = Number(position) || 0;
+    category_id = Number(category_id);
+    parent_id = parent_id ? Number(parent_id) : null;
 
-      /* ---------------- REQUIRED VALIDATION ---------------- */
+    /* ---------------- REQUIRED VALIDATION ---------------- */
 
-      if (!category_id || !title) {
-        return res.status(400).json({
-          message: "Missing required fields",
-        });
-      }
-
-      /* ---------------- EXISTING GAME ---------------- */
-
-      const existing = await pool.query(
-        "SELECT * FROM games WHERE id = $1",
-        [id]
-      );
-
-      if (!existing.rows.length) {
-        return res.status(404).json({
-          message: "Game not found",
-        });
-      }
-
-      const oldGame = existing.rows[0];
-
-      /* ---------------- CATEGORY CHECK ---------------- */
-
-      const cat = await pool.query(
-        "SELECT id FROM game_categories WHERE id = $1",
-        [category_id]
-      );
-
-      if (!cat.rows.length) {
-        return res.status(400).json({
-          message: "Invalid category",
-        });
-      }
-
-      /* ---------------- PARENT CHECK ---------------- */
-
-      if (parent_id) {
-        // prevent self-parenting
-        if (parent_id === Number(id)) {
-          return res.status(400).json({
-            message: "Game cannot be its own parent",
-          });
-        }
-
-        const parent = await pool.query(
-          "SELECT id, is_provider FROM games WHERE id = $1",
-          [parent_id]
-        );
-
-        if (!parent.rows.length || !parent.rows[0].is_provider) {
-          return res.status(400).json({
-            message: "Invalid parent provider game",
-          });
-        }
-      }
-
-      /* ---------------- UID UNIQUENESS ---------------- */
-
-
-
-      /* ---------------- IMAGE ---------------- */
-
-      let image_url = oldGame.image_url;
-      if (req.file) {
-        image_url = `/uploads/games/${req.file.filename}`;
-      }
-
-      /* ---------------- UPDATE ---------------- */
-
-      const result = await pool.query(
-        `
-        UPDATE games
-        SET
-          category_id = $1,
-          parent_id   = $2,
-          uid         = $3,
-          title       = $4,
-          image_url   = $5,
-          position    = $6,
-          is_active   = $7,
-          is_provider = $8,
-          updated_at  = now()
-        WHERE id = $9
-        RETURNING *
-        `,
-        [
-          category_id,
-          parent_id,
-          uid, // NULL or unique value
-          title,
-          image_url,
-          position,
-          is_active,
-          is_provider,
-          id,
-        ]
-      );
-
-      return res.json({
-        success: true,
-        data: result.rows[0],
-      });
-    } catch (err) {
-      // unique index safety
-      if (err.code === "23505") {
-        return res.status(400).json({
-          message: "UID already exists",
-        });
-      }
-
-      console.error("GAME UPDATE ERROR:", err);
-      return res.status(500).json({
-        message: "Internal server error",
+    if (!category_id || !title) {
+      return res.status(400).json({
+        message: "Missing required fields",
       });
     }
+
+    /* ---------------- EXISTING GAME ---------------- */
+
+    const existing = await pool.query("SELECT * FROM games WHERE id = $1", [
+      id,
+    ]);
+
+    if (!existing.rows.length) {
+      return res.status(404).json({
+        message: "Game not found",
+      });
+    }
+
+    const oldGame = existing.rows[0];
+
+    /* ---------------- CATEGORY CHECK ---------------- */
+
+    const cat = await pool.query(
+      "SELECT id FROM game_categories WHERE id = $1",
+      [category_id]
+    );
+
+    if (!cat.rows.length) {
+      return res.status(400).json({
+        message: "Invalid category",
+      });
+    }
+
+    /* ---------------- PARENT CHECK ---------------- */
+
+    if (parent_id) {
+      // prevent self-parenting
+      if (parent_id === Number(id)) {
+        return res.status(400).json({
+          message: "Game cannot be its own parent",
+        });
+      }
+
+      const parent = await pool.query(
+        "SELECT id, is_provider FROM games WHERE id = $1",
+        [parent_id]
+      );
+
+      if (!parent.rows.length || !parent.rows[0].is_provider) {
+        return res.status(400).json({
+          message: "Invalid parent provider game",
+        });
+      }
+    }
+
+    /* ---------------- IMAGE ---------------- */
+
+    let image_url = oldGame.image_url;
+    if (req.file) {
+      image_url = `/uploads/games/${req.file.filename}`;
+    }
+
+    /* ---------------- UPDATE ---------------- */
+
+    const result = await pool.query(
+      `
+      UPDATE games
+      SET
+        category_id = $1,
+        parent_id   = $2,
+        uid         = $3,
+        title       = $4,
+        image_url   = $5,
+        position    = $6,
+        is_active   = $7,
+        is_provider = $8,
+        updated_at  = now()
+      WHERE id = $9
+      RETURNING *
+      `,
+      [
+        category_id,
+        parent_id,
+        uid, // no uniqueness check
+        title,
+        image_url,
+        position,
+        is_active,
+        is_provider,
+        id,
+      ]
+    );
+
+    return res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    console.error("GAME UPDATE ERROR:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
   }
-);
+});
 
 
 
