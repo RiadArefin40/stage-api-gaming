@@ -115,6 +115,20 @@ await client.query(
   `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
   [smsAmount, deposit.user_id]
 );
+
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        deposit.user_id,
+        "Deposit Approved",
+        `Your deposit of ৳${smsAmount} has been approved successfully.`,
+        "success",
+      ]
+    );
       await client.query("COMMIT");
       return;
     }
@@ -134,8 +148,22 @@ await client.query(
 
 await client.query(
   `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
-  [smsAmount, deposit.user_id]
+  [depositAmount, deposit.user_id]
 );
+
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        deposit.user_id,
+        "Deposit Approved",
+        `Your deposit of ৳${depositAmount} has been approved successfully.`,
+        "success",
+      ]
+    );
 
     await client.query("COMMIT");
     console.log(`🎉 Deposit ID ${deposit.id} auto-approved successfully`);
