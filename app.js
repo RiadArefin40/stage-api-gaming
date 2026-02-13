@@ -257,7 +257,7 @@ app.get("/chat/:user_id/:chatId/messages", async (req, res) => {
 
 
 // User send message
-router.post("/chat/:user_id/:chatId/message", async (req, res) => {
+app.post("/chat/:user_id/:chatId/message", async (req, res) => {
   const { user_id, chatId } = req.params;
   const { message } = req.body;
   const client = await pool.connect();
