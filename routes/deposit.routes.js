@@ -76,21 +76,38 @@ console.log(`🔍 Searching SMS for TxnID ${txnId}`);
 
 console.log("Searching:", txnId);
 
-const smsResult = await client.query(
-  `SELECT *
+const allSms = await client.query(
+  `SELECT id, sender, message
    FROM incoming_sms
-   WHERE message ~ $1
-   AND (
-        LOWER(sender) LIKE '%bkash%' OR
-        LOWER(sender) LIKE '%nagad%' OR
-        LOWER(sender) LIKE '%16216%' OR
-        LOWER(sender) LIKE '%rocket%'
-       )
-   AND (is_used = false OR is_used IS NULL)
-   ORDER BY id DESC
-   LIMIT 1`,
-  [txnId]
+   WHERE LOWER(sender) LIKE '%bkash%' 
+      OR LOWER(sender) LIKE '%nagad%'
+      OR LOWER(sender) LIKE '%16216%'
+      OR LOWER(sender) LIKE '%rocket%'
+   ORDER BY id DESC`
 );
+
+console.log("=== ALL Bkash/Nagad/Rocket SMS ===");
+allSms.rows.forEach((sms) => {
+  let txns = [];
+  
+  // Try to extract TxnID from each message
+  const sender = sms.sender.toLowerCase();
+
+  if (sender.includes("bkash")) {
+    const match = sms.message.match(/TrxID\s*[: ]?\s*([A-Z0-9]+)/gi);
+    if (match) txns = match.map((m) => m.split(/\s/).pop());
+  } else if (sender.includes("nagad")) {
+    const match = sms.message.match(/TxnID\s*[: ]?\s*([A-Z0-9]+)/gi);
+    if (match) txns = match.map((m) => m.split(/\s/).pop());
+  } else if (sender.includes("16216") || sender.includes("rocket")) {
+    const match = sms.message.match(/TxnId\s*[: ]?\s*([A-Z0-9]+)/gi);
+    if (match) txns = match.map((m) => m.split(/\s/).pop());
+  }
+
+  console.log(`SMS ID: ${sms.id}, Sender: ${sms.sender}, TxnID(s): ${txns.join(", ")}`);
+});
+
+
     if (!smsResult.rows.length) {
       await client.query(
         `UPDATE deposits
