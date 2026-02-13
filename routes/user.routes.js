@@ -2298,6 +2298,134 @@ router.get('/admin/sms', async (req, res) => {
 });
 
 
+router.post("/set-spin-cost", async (req, res) => {
+  const { spin_cost } = req.body;
 
+  if (spin_cost < 0) {
+    return res.status(400).json({ error: "Invalid spin cost" });
+  }
+
+  try {
+    await pool.query(
+      "UPDATE wheel_settings SET spin_cost=$1, updated_at=NOW() WHERE id=1",
+      [spin_cost]
+    );
+
+    res.json({ message: "Spin cost updated" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/set-wheel-prizes", async (req, res) => {
+  const { prizes } = req.body;
+
+  if (!Array.isArray(prizes) || prizes.length > 5) {
+    return res.status(400).json({ error: "Max 5 prizes allowed" });
+  }
+
+  try {
+    await pool.query("BEGIN");
+    await pool.query("DELETE FROM wheel_prizes");
+
+    for (const p of prizes) {
+      await pool.query(
+        `INSERT INTO wheel_prizes (type, value, probability)
+         VALUES ($1, $2, $3)`,
+        [p.type, p.value, p.probability || 1]
+      );
+    }
+
+    await pool.query("COMMIT");
+    res.json({ message: "Prizes updated" });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+router.post("/spin", async (req, res) => {
+  const { user_id } = req.body;
+
+  try {
+    await pool.query("BEGIN");
+
+    // 1️⃣ Get spin cost
+    const costResult = await pool.query(
+      "SELECT spin_cost FROM wheel_settings WHERE id=1"
+    );
+    const spinCost = costResult.rows[0].spin_cost;
+
+    // 2️⃣ Check user points
+    const userResult = await pool.query(
+      "SELECT vip_points, balance FROM users WHERE id=$1 FOR UPDATE",
+      [user_id]
+    );
+
+    const user = userResult.rows[0];
+
+    if (user.vip_points < spinCost) {
+      throw new Error("Not enough points");
+    }
+
+    // 3️⃣ Deduct spin cost
+    await pool.query(
+      "UPDATE users SET vip_points = vip_points - $1 WHERE id=$2",
+      [spinCost, user_id]
+    );
+
+    // 4️⃣ Get prizes
+    const prizeResult = await pool.query(
+      "SELECT * FROM wheel_prizes WHERE active=true"
+    );
+    const prizes = prizeResult.rows;
+
+    // 5️⃣ Weighted random
+    const weighted = [];
+    prizes.forEach(p => {
+      for (let i = 0; i < p.probability; i++) {
+        weighted.push(p);
+      }
+    });
+
+    const winner = weighted[Math.floor(Math.random() * weighted.length)];
+
+    // 6️⃣ Give reward
+    if (winner.type === "amount") {
+      await pool.query(
+        "UPDATE users SET balance = balance + $1 WHERE id=$2",
+        [winner.value, user_id]
+      );
+    } else {
+      await pool.query(
+        "UPDATE users SET vip_points = vip_points + $1 WHERE id=$2",
+        [winner.value, user_id]
+      );
+    }
+
+    // 7️⃣ Save history
+    await pool.query(
+      `INSERT INTO spin_history
+       (user_id, prize_id, prize_type, prize_value)
+       VALUES ($1,$2,$3,$4)`,
+      [user_id, winner.id, winner.type, winner.value]
+    );
+
+    await pool.query("COMMIT");
+
+    res.json({
+      prize_type: winner.type,
+      prize_value: winner.value
+    });
+
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
 
 export default router;
