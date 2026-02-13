@@ -32,12 +32,13 @@ const autoApproveDeposit = async (depositId) => {
     const txnId = deposit.transaction_id?.trim();
     const depositAmount = Number(deposit.amount);
     const bonusAmount = Number(deposit.bonus_amount || 0);
+    const realDepositAmount = depositAmount - bonusAmount;
 
-    if (!txnId) {
+    if (!txnId || realDepositAmount <= 0) {
       await client.query(
         `UPDATE deposits
          SET status='failed',
-             failure_reason='Missing TxnID'
+             failure_reason='Invalid deposit data'
          WHERE id=$1`,
         [deposit.id]
       );
@@ -49,7 +50,7 @@ const autoApproveDeposit = async (depositId) => {
     // 🔐 STEP 0: LOCAL SMS VERIFICATION
     // ============================================================
 
-    // 1️⃣ Prevent duplicate approved TxnID
+    // Prevent duplicate approved TxnID
     const duplicate = await client.query(
       `SELECT id FROM deposits
        WHERE transaction_id=$1
@@ -70,7 +71,7 @@ const autoApproveDeposit = async (depositId) => {
       return;
     }
 
-    // 2️⃣ Find matching SMS from allowed senders only
+    // Find matching unused SMS from allowed senders
     const smsResult = await client.query(
       `SELECT * FROM incoming_sms
        WHERE message ILIKE $1
@@ -156,8 +157,8 @@ const autoApproveDeposit = async (depositId) => {
       return;
     }
 
-    // Validate Amount
-    if (!smsAmount || smsAmount !== depositAmount) {
+    // Validate Amount (EXCLUDING BONUS)
+    if (!smsAmount || smsAmount !== realDepositAmount) {
       await client.query(
         `UPDATE deposits
          SET status='failed',
@@ -179,49 +180,19 @@ const autoApproveDeposit = async (depositId) => {
 
     console.log(`✅ Local SMS verified for TxnID ${txnId}`);
 
-    // ============================================================
-    // 🔵 STEP 1: VERIFY EXTERNAL API (UNCHANGED)
-    // ============================================================
 
-    if (!deposit.external_payout_id) {
-      const check = await checkDeposit(deposit.transaction_id);
-
-      if (!check?.success) {
-        await client.query(
-          `UPDATE deposits
-           SET status = 'processing',
-               retry_count = retry_count + 1,
-               failure_reason = $1
-           WHERE id = $2`,
-          [check.message || "External payout not ready", deposit.id]
-        );
-
-        await client.query("COMMIT");
-        return;
-      }
-
-      await client.query(
-        `UPDATE deposits 
-         SET external_payout_id=$1, status='processing' 
-         WHERE id=$2`,
-        [check.data.payout_id, deposit.id]
-      );
-
-      deposit.external_payout_id = check.data.payout_id;
-    }
 
     // ============================================================
-    // 🔵 STEP 2: CONFIRM PAYOUT (UNCHANGED)
+    // 🔵 STEP 2: CONFIRM PAYOUT
     // ============================================================
 
     const confirm = await confirmDeposit(deposit.external_payout_id);
-
     const payoutAmount = Number(confirm?.data?.amount);
 
     if (
       !confirm?.success ||
       Number.isNaN(payoutAmount) ||
-      payoutAmount !== depositAmount - bonusAmount
+      payoutAmount !== realDepositAmount
     ) {
       await client.query(
         `UPDATE deposits
@@ -247,11 +218,12 @@ const autoApproveDeposit = async (depositId) => {
       [confirm.data.payout_id, deposit.id]
     );
 
+    // Credit FULL amount including bonus
     await client.query(
       `UPDATE users 
        SET wallet = wallet + $1 
        WHERE id = $2`,
-      [deposit.amount, deposit.user_id]
+      [depositAmount, deposit.user_id]
     );
 
     await client.query("COMMIT");
