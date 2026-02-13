@@ -460,11 +460,12 @@ if (!sessionRes.rows.length) {
 
 const betType = sessionRes.rows[0].game_type;
 await pool.query(
-  `INSERT INTO user_bets (user_id, bet_type, amount)
-   VALUES ($1,$2,$3)
+  `INSERT INTO user_bets (user_id, bet_type, amount, vip_points)
+   VALUES ($1, $2, $3, $3)  -- vip_points starts equal to bet amount
    ON CONFLICT (user_id, bet_type)
    DO UPDATE SET
      amount = user_bets.amount + EXCLUDED.amount,
+     vip_points = user_bets.vip_points + EXCLUDED.vip_points,
      updated_at = NOW()`,
   [user.id, betType, bet_amount]
 );
