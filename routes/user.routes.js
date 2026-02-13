@@ -1515,127 +1515,111 @@ router.delete("/game-categories/:id", async (req, res) => {
 
 
 // CREATE game
-router.post(
-  "/games",
-  gameUpload.single("image"),
-  async (req, res) => {
-    try {
-      let {
-        category_id,
-        parent_id = null,
-        uid,
-        title,
-        position = 0,
-        is_active = true,
-        is_provider = false,
-      } = req.body;
+router.post("/games", gameUpload.single("image"), async (req, res) => {
+  try {
+    let {
+      category_id,
+      parent_id = null,
+      uid,
+      title,
+      position = 0,
+      is_active = true,
+      is_provider = false,
+    } = req.body;
 
-      /* ---------------- NORMALIZE INPUT ---------------- */
+    /* ---------------- NORMALIZE INPUT ---------------- */
 
-      // normalize UID: empty / whitespace → NULL
-      uid =
-        typeof uid === "string" && uid.trim() !== ""
-          ? uid.trim()
-          : null;
+    // keep UID as-is or null if empty
+    uid = typeof uid === "string" && uid.trim() !== "" ? uid.trim() : null;
 
-      // normalize booleans (FormData sends strings)
-      is_active = is_active === true || is_active === "true";
-      is_provider = is_provider === true || is_provider === "true";
+    // normalize booleans (FormData sends strings)
+    is_active = is_active === true || is_active === "true";
+    is_provider = is_provider === true || is_provider === "true";
 
-      // normalize numbers
-      position = Number(position) || 0;
-      category_id = Number(category_id);
-      parent_id = parent_id ? Number(parent_id) : null;
+    // normalize numbers
+    position = Number(position) || 0;
+    category_id = Number(category_id);
+    parent_id = parent_id ? Number(parent_id) : null;
 
-      /* ---------------- VALIDATION ---------------- */
+    /* ---------------- VALIDATION ---------------- */
 
-      if (!category_id || !title) {
-        console.warn("⚠️ Missing required fields", req.body);
-        return res.status(400).json({
-          message: "Missing required fields",
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({
-          message: "Image is required",
-        });
-      }
-
-      /* ---------------- CATEGORY CHECK ---------------- */
-
-      const cat = await pool.query(
-        "SELECT id FROM game_categories WHERE id = $1",
-        [category_id]
-      );
-
-      if (!cat.rows.length) {
-        return res.status(400).json({
-          message: "Invalid category",
-        });
-      }
-
-      /* ---------------- PARENT CHECK ---------------- */
-
-      if (parent_id) {
-        const parent = await pool.query(
-          "SELECT id, is_provider FROM games WHERE id = $1",
-          [parent_id]
-        );
-
-        if (!parent.rows.length || !parent.rows[0].is_provider) {
-          return res.status(400).json({
-            message: "Invalid parent provider game",
-          });
-        }
-      }
-
-
-
-
-      /* ---------------- INSERT ---------------- */
-
-      const image_url = `/uploads/games/${req.file.filename}`;
-
-      const result = await pool.query(
-        `
-        INSERT INTO games
-          (category_id, parent_id, uid, title, image_url, position, is_active, is_provider)
-        VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8)
-        RETURNING *
-        `,
-        [
-          category_id,
-          parent_id,
-          uid, // NULL or unique value
-          title,
-          image_url,
-          position,
-          is_active,
-          is_provider,
-        ]
-      );
-
-      return res.json({
-        success: true,
-        data: result.rows[0],
-      });
-    } catch (err) {
-      // handle unique index violation (extra safety)
-      if (err.code === "23505") {
-        return res.status(400).json({
-          message: "UID already exists",
-        });
-      }
-
-      console.error("GAME CREATE ERROR:", err);
-      return res.status(500).json({
-        message: "Internal server error",
+    if (!category_id || !title) {
+      console.warn("⚠️ Missing required fields", req.body);
+      return res.status(400).json({
+        message: "Missing required fields",
       });
     }
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Image is required",
+      });
+    }
+
+    /* ---------------- CATEGORY CHECK ---------------- */
+
+    const cat = await pool.query(
+      "SELECT id FROM game_categories WHERE id = $1",
+      [category_id]
+    );
+
+    if (!cat.rows.length) {
+      return res.status(400).json({
+        message: "Invalid category",
+      });
+    }
+
+    /* ---------------- PARENT CHECK ---------------- */
+
+    if (parent_id) {
+      const parent = await pool.query(
+        "SELECT id, is_provider FROM games WHERE id = $1",
+        [parent_id]
+      );
+
+      if (!parent.rows.length || !parent.rows[0].is_provider) {
+        return res.status(400).json({
+          message: "Invalid parent provider game",
+        });
+      }
+    }
+
+    /* ---------------- INSERT ---------------- */
+
+    const image_url = `/uploads/games/${req.file.filename}`;
+
+    const result = await pool.query(
+      `
+      INSERT INTO games
+        (category_id, parent_id, uid, title, image_url, position, is_active, is_provider)
+      VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *
+      `,
+      [
+        category_id,
+        parent_id,
+        uid, // no uniqueness enforced
+        title,
+        image_url,
+        position,
+        is_active,
+        is_provider,
+      ]
+    );
+
+    return res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    // removed unique UID check; all UID values allowed
+    console.error("GAME CREATE ERROR:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
   }
-);
+});
 
 
 // UPDATE game
