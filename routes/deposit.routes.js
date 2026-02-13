@@ -29,7 +29,7 @@ const autoApproveDeposit = async (depositId) => {
       return;
     }
 
-    const txnId = deposit.transaction_id?.trim();
+    const txnId = deposit.transaction_id?.toString().trim();
     const depositAmount = Number(deposit.amount);
     const bonusAmount = Number(deposit.bonus_amount || 0);
     const realDepositAmount = depositAmount - bonusAmount;
@@ -72,21 +72,25 @@ console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=$
     }
 console.log(`🔍 Searching SMS for TxnID ${txnId}`);
     // Find matching unused SMS from allowed senders
-    const smsResult = await client.query(
-      `SELECT * FROM incoming_sms
-       WHERE message ILIKE $1
-       AND (
-            LOWER(sender) LIKE '%bkash%' OR
-            LOWER(sender) LIKE '%nagad%' OR
-            LOWER(sender) LIKE '%16216%' OR
-            LOWER(sender) LIKE '%rocket%'
-           )
-       AND (is_used = false OR is_used IS NULL)
-       ORDER BY id DESC
-       LIMIT 1`,
-      [`%${txnId}%`]
-    );
 
+
+console.log("Searching:", txnId);
+
+const smsResult = await client.query(
+  `SELECT *
+   FROM incoming_sms
+   WHERE message ~ $1
+   AND (
+        LOWER(sender) LIKE '%bkash%' OR
+        LOWER(sender) LIKE '%nagad%' OR
+        LOWER(sender) LIKE '%16216%' OR
+        LOWER(sender) LIKE '%rocket%'
+       )
+   AND (is_used = false OR is_used IS NULL)
+   ORDER BY id DESC
+   LIMIT 1`,
+  [txnId]
+);
     if (!smsResult.rows.length) {
       await client.query(
         `UPDATE deposits
