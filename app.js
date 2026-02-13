@@ -80,31 +80,31 @@ io.on("connection", (socket) => {
   // Admin online
   socket.on("admin_online", () => {
     onlineAdmins.add(socket.id);
+    // emit full online users list to admins
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
 
   // User online
   socket.on("user_online", (userId) => {
     onlineUsers.set(userId, socket.id);
+    // emit to all admins the updated online user IDs
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
 
-  // Join chat room
+  // Join chat
   socket.on("join_chat", ({ chatId }) => {
     socket.join(chatId);
-    console.log(`Socket ${socket.id} joined chat ${chatId}`);
   });
 
-  // Leave chat room
+  // Leave chat
   socket.on("leave_chat", ({ chatId }) => {
     socket.leave(chatId);
-    console.log(`Socket ${socket.id} left chat ${chatId}`);
   });
 
   // Disconnect
   socket.on("disconnect", () => {
     onlineAdmins.delete(socket.id);
-    // remove from onlineUsers
+    // remove user if their socket disconnected
     for (let [userId, sId] of onlineUsers.entries()) {
       if (sId === socket.id) onlineUsers.delete(userId);
     }
