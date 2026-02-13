@@ -1590,21 +1590,8 @@ router.post(
         }
       }
 
-      /* ---------------- UID UNIQUENESS ---------------- */
 
-      // only check when uid has a real value
-      if (uid !== null) {
-        const exists = await pool.query(
-          "SELECT 1 FROM games WHERE uid = $1 LIMIT 1",
-          [uid]
-        );
 
-        if (exists.rows.length) {
-          return res.status(400).json({
-            message: "UID already exists",
-          });
-        }
-      }
 
       /* ---------------- INSERT ---------------- */
 
@@ -1746,19 +1733,7 @@ router.put(
 
       /* ---------------- UID UNIQUENESS ---------------- */
 
-      // only when uid has a real value and changed
-      if (uid !== null && uid !== oldGame.uid) {
-        const exists = await pool.query(
-          "SELECT 1 FROM games WHERE uid = $1 AND id <> $2 LIMIT 1",
-          [uid, id]
-        );
 
-        if (exists.rows.length) {
-          return res.status(400).json({
-            message: "UID already exists",
-          });
-        }
-      }
 
       /* ---------------- IMAGE ---------------- */
 
