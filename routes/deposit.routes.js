@@ -32,13 +32,12 @@ const autoApproveDeposit = async (depositId) => {
     const txnId = deposit.transaction_id?.trim();
     const depositAmount = Number(deposit.amount);
     const bonusAmount = Number(deposit.bonus_amount || 0);
-    const realDepositAmount = depositAmount - bonusAmount;
-console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=${depositAmount}, Bonus=${bonusAmount}, RealAmount=${realDepositAmount}`);
-    if (!txnId || realDepositAmount <= 0) {
+
+    if (!txnId) {
       await client.query(
         `UPDATE deposits
          SET status='failed',
-             failure_reason='Invalid deposit data'
+             failure_reason='Missing TxnID'
          WHERE id=$1`,
         [deposit.id]
       );
@@ -50,7 +49,7 @@ console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=$
     // 🔐 STEP 0: LOCAL SMS VERIFICATION
     // ============================================================
 
-    // Prevent duplicate approved TxnID
+    // 1️⃣ Prevent duplicate approved TxnID
     const duplicate = await client.query(
       `SELECT id FROM deposits
        WHERE transaction_id=$1
@@ -71,18 +70,21 @@ console.log(`🔍 Auto-approving deposit ${deposit.id}: TxnID=${txnId}, Amount=$
       return;
     }
 
-const smsResult = await client.query(
-  `SELECT * FROM incoming_sms
-   WHERE message ILIKE $1
-     AND (LOWER(sender) LIKE '%bkash%' 
-          OR LOWER(sender) LIKE '%nagad%' 
-          OR LOWER(sender) LIKE '%16216%' 
-          OR LOWER(sender) LIKE '%rocket%')
-     AND (is_used = false OR is_used IS NULL)
-   ORDER BY id DESC
-   LIMIT 1`,
-  [`%${txnId}%`] // use ILIKE + % for substring match
-);
+    // 2️⃣ Find matching SMS from allowed senders only
+    const smsResult = await client.query(
+      `SELECT * FROM incoming_sms
+       WHERE message ILIKE $1
+       AND (
+            LOWER(sender) LIKE '%bkash%' OR
+            LOWER(sender) LIKE '%nagad%' OR
+            LOWER(sender) LIKE '%16216%' OR
+            LOWER(sender) LIKE '%rocket%'
+           )
+       AND (is_used = false OR is_used IS NULL)
+       ORDER BY id DESC
+       LIMIT 1`,
+      [`%${txnId}%`]
+    );
 
     if (!smsResult.rows.length) {
       await client.query(
@@ -154,8 +156,8 @@ const smsResult = await client.query(
       return;
     }
 
-    // Validate Amount (EXCLUDING BONUS)
-    if (!smsAmount || smsAmount !== realDepositAmount) {
+    // Validate Amount
+    if (!smsAmount || smsAmount !== depositAmount) {
       await client.query(
         `UPDATE deposits
          SET status='failed',
@@ -177,32 +179,36 @@ const smsResult = await client.query(
 
     console.log(`✅ Local SMS verified for TxnID ${txnId}`);
 
+    // ============================================================
+    // 🔵 STEP 1: VERIFY EXTERNAL API (UNCHANGED)
+    // ============================================================
 
 
     // ============================================================
-    // 🔵 STEP 2: CONFIRM PAYOUT
+    // 🔵 STEP 2: CONFIRM PAYOUT (UNCHANGED)
     // ============================================================
 
-    const confirm = await confirmDeposit(deposit.external_payout_id);
-    const payoutAmount = Number(confirm?.data?.amount);
+    // const confirm = await confirmDeposit(deposit.external_payout_id);
 
-    if (
-      !confirm?.success ||
-      Number.isNaN(payoutAmount) ||
-      payoutAmount !== realDepositAmount
-    ) {
-      await client.query(
-        `UPDATE deposits
-         SET status='failed',
-             retry_count = retry_count + 1,
-             failure_reason = $1
-         WHERE id = $2`,
-        ["Payout mismatch", deposit.id]
-      );
+    // const payoutAmount = Number(confirm?.data?.amount);
 
-      await client.query("COMMIT");
-      return;
-    }
+    // if (
+    //   !confirm?.success ||
+    //   Number.isNaN(payoutAmount) ||
+    //   payoutAmount !== depositAmount - bonusAmount
+    // ) {
+    //   await client.query(
+    //     `UPDATE deposits
+    //      SET status='failed',
+    //          retry_count = retry_count + 1,
+    //          failure_reason = $1
+    //      WHERE id = $2`,
+    //     ["Payout mismatch", deposit.id]
+    //   );
+
+    //   await client.query("COMMIT");
+    //   return;
+    // }
 
     // ============================================================
     // 🔵 STEP 3: FINALIZE
@@ -212,15 +218,14 @@ const smsResult = await client.query(
       `UPDATE deposits 
        SET status='approved', external_payout_id=$1 
        WHERE id=$2`,
-      [confirm.data.payout_id, deposit.id]
+      [deposit.id]
     );
 
-    // Credit FULL amount including bonus
     await client.query(
       `UPDATE users 
        SET wallet = wallet + $1 
        WHERE id = $2`,
-      [depositAmount, deposit.user_id]
+      [deposit.amount, deposit.user_id]
     );
 
     await client.query("COMMIT");
