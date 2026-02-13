@@ -254,8 +254,11 @@ app.get("/chat/:user_id/:chatId/messages", async (req, res) => {
 });
 
 // User send message
-app.post("/chat/:user_id/:chatId/message", async (req, res) => {
-  const { chatId } = req.params;
+
+
+// User send message
+router.post("/chat/:user_id/:chatId/message", async (req, res) => {
+  const { user_id, chatId } = req.params;
   const { message } = req.body;
   const client = await pool.connect();
   try {
@@ -267,9 +270,33 @@ app.post("/chat/:user_id/:chatId/message", async (req, res) => {
     );
     const savedMsg = rows[0];
 
+    // Emit to chat room
     io.to(chatId).emit("receive_message", savedMsg);
+
+    // Calculate unread count for this chat
+    const { rows: countRows } = await client.query(
+      `SELECT COUNT(*) AS unread
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       AND sender = 'user'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+
+    const unreadCount = Number(countRows[0].unread);
+
+    // Emit unread_count to all admins
+    for (let adminSocketId of onlineAdmins) {
+      io.to(adminSocketId).emit("unread_count", {
+        chatId,
+        count: unreadCount
+      });
+    }
+
     res.json(savedMsg);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 // Mark messages from support as read
