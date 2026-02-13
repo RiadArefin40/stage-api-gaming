@@ -12,86 +12,75 @@ const autoApproveDeposit = async (depositId) => {
   try {
     await client.query("BEGIN");
 
+    console.log(`🔍 Fetching deposit ID: ${depositId}`);
+
+    // 1️⃣ Fetch deposit
     const { rows } = await client.query(
-      "SELECT * FROM deposits WHERE id=$1 FOR UPDATE",
+      `SELECT * FROM deposits WHERE id=$1 FOR UPDATE`,
       [depositId]
     );
 
     if (!rows.length) {
+      console.log(`❌ Deposit ${depositId} not found`);
       await client.query("ROLLBACK");
       return;
     }
 
     const deposit = rows[0];
+    const txnId = deposit.transaction_id?.trim();
+    const depositAmount = Number(deposit.amount);
+    const bonusAmount = Number(deposit.bonus_amount || 0);
+    const realAmount = depositAmount - bonusAmount;
+
+    console.log(`💰 Deposit: ID=${deposit.id}, TxnID=${txnId}, Amount=${depositAmount}, Bonus=${bonusAmount}, RealAmount=${realAmount}, Status=${deposit.status}`);
 
     if (!["pending", "processing"].includes(deposit.status)) {
+      console.log(`❌ Deposit status "${deposit.status}" cannot be auto-approved`);
       await client.query("ROLLBACK");
       return;
     }
 
-    const txnId = deposit.transaction_id?.trim();
-    const depositAmount = Number(deposit.amount);
-    const bonusAmount = Number(deposit.bonus_amount || 0);
-
     if (!txnId) {
+      console.log(`❌ Missing TxnID for deposit ${deposit.id}`);
       await client.query(
-        `UPDATE deposits
-         SET status='failed',
-             failure_reason='Missing TxnID'
-         WHERE id=$1`,
+        `UPDATE deposits SET status='failed', failure_reason='Missing TxnID' WHERE id=$1`,
         [deposit.id]
       );
       await client.query("COMMIT");
       return;
     }
 
-    // ============================================================
-    // 🔐 STEP 0: LOCAL SMS VERIFICATION
-    // ============================================================
-
-    // 1️⃣ Prevent duplicate approved TxnID
-    const duplicate = await client.query(
-      `SELECT id FROM deposits
-       WHERE transaction_id=$1
-       AND status='approved'
-       AND id != $2`,
+    // 2️⃣ Prevent duplicate approved TxnID
+    const dup = await client.query(
+      `SELECT id FROM deposits WHERE transaction_id=$1 AND status='approved' AND id != $2`,
       [txnId, deposit.id]
     );
 
-    if (duplicate.rows.length > 0) {
+    if (dup.rows.length) {
+      console.log(`❌ Duplicate TxnID ${txnId} found in deposit ${dup.rows[0].id}`);
       await client.query(
-        `UPDATE deposits
-         SET status='failed',
-             failure_reason='Duplicate TxnID'
-         WHERE id=$1`,
+        `UPDATE deposits SET status='failed', failure_reason='Duplicate TxnID' WHERE id=$1`,
         [deposit.id]
       );
       await client.query("COMMIT");
       return;
     }
 
-    // 2️⃣ Find matching SMS from allowed senders only
+    // 3️⃣ Find matching SMS (flexible)
+    console.log(`🔍 Searching SMS for TxnID ${txnId} (any sender)`);
+
     const smsResult = await client.query(
       `SELECT * FROM incoming_sms
        WHERE message ILIKE $1
-       AND (
-            LOWER(sender) LIKE '%bkash%' OR
-            LOWER(sender) LIKE '%nagad%' OR
-            LOWER(sender) LIKE '%16216%' OR
-            LOWER(sender) LIKE '%rocket%'
-           )
-       AND (is_used = false OR is_used IS NULL)
        ORDER BY id DESC
        LIMIT 1`,
       [`%${txnId}%`]
     );
 
     if (!smsResult.rows.length) {
+      console.log(`❌ No SMS found containing TxnID ${txnId}`);
       await client.query(
-        `UPDATE deposits
-         SET retry_count = retry_count + 1,
-             failure_reason='TxnID not found in SMS'
-         WHERE id=$1`,
+        `UPDATE deposits SET retry_count = retry_count + 1, failure_reason='TxnID not found in SMS' WHERE id=$1`,
         [deposit.id]
       );
       await client.query("COMMIT");
@@ -99,142 +88,65 @@ const autoApproveDeposit = async (depositId) => {
     }
 
     const sms = smsResult.rows[0];
-    const sender = sms.sender?.toLowerCase() || "";
+    console.log(`✅ Found SMS: ID=${sms.id}, Sender=${sms.sender}, Message="${sms.message}"`);
 
-    let smsTxnId = null;
+    // 4️⃣ Extract amount from SMS (if possible)
     let smsAmount = null;
+    const amtMatch = sms.message.match(/[\d,]+(?:\.\d+)?/); // pick first number in SMS
+    if (amtMatch) smsAmount = Number(amtMatch[0].replace(/,/g, ""));
 
-    // ========================
-    // 🟣 BKASH
-    // ========================
-    if (sender.includes("bkash")) {
-      const txnMatch = sms.message.match(/TrxID\s+([A-Z0-9]+)/i);
-      const amountMatch = sms.message.match(/received Tk\s*([\d,]+\.\d+)/i);
+    console.log(`💵 Extracted SMS amount: ${smsAmount}`);
 
-      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
-      smsAmount = amountMatch
-        ? Number(amountMatch[1].replace(/,/g, ""))
-        : null;
-    }
-
-    // ========================
-    // 🟡 NAGAD
-    // ========================
-    else if (sender.includes("nagad")) {
-      const txnMatch = sms.message.match(/TxnID:\s*([A-Z0-9]+)/i);
-      const amountMatch = sms.message.match(/Amount:\s*Tk\s*([\d,]+\.\d+)/i);
-
-      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
-      smsAmount = amountMatch
-        ? Number(amountMatch[1].replace(/,/g, ""))
-        : null;
-    }
-
-    // ========================
-    // 🔵 ROCKET / 16216
-    // ========================
-    else if (sender.includes("16216") || sender.includes("rocket")) {
-      const txnMatch = sms.message.match(/TxnId:\s*([A-Z0-9]+)/i);
-      const amountMatch = sms.message.match(/Tk\s*([\d,]+\.\d+)/i);
-
-      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
-      smsAmount = amountMatch
-        ? Number(amountMatch[1].replace(/,/g, ""))
-        : null;
-    }
-
-    // Validate TxnID
-    if (!smsTxnId || smsTxnId !== txnId) {
+    if (smsAmount && smsAmount !== realAmount) {
+      console.log(`❌ SMS amount ${smsAmount} does not match expected ${realAmount}`);
       await client.query(
-        `UPDATE deposits
-         SET status='failed',
-             failure_reason='TxnID mismatch in SMS'
-         WHERE id=$1`,
+        `UPDATE deposits SET status='failed', failure_reason='SMS amount mismatch' WHERE id=$1`,
         [deposit.id]
       );
       await client.query("COMMIT");
       return;
     }
 
-    // Validate Amount
-    if (!smsAmount || smsAmount !== depositAmount) {
-      await client.query(
-        `UPDATE deposits
-         SET status='failed',
-             failure_reason='SMS amount mismatch'
-         WHERE id=$1`,
-        [deposit.id]
-      );
-      await client.query("COMMIT");
-      return;
+    // 5️⃣ Mark SMS as used
+    await client.query(`UPDATE incoming_sms SET is_used = true WHERE id=$1`, [sms.id]);
+    console.log(`✅ Marked SMS ID ${sms.id} as used`);
+
+    // 6️⃣ Confirm deposit payout if external
+    let payoutId = deposit.external_payout_id || null;
+    if (payoutId) {
+      console.log(`🔍 Confirming external payout: ${payoutId}`);
+      const confirm = await confirmDeposit(payoutId); // your existing function
+      const payoutAmount = Number(confirm?.data?.amount);
+      if (!confirm?.success || payoutAmount !== realAmount) {
+        console.log(`❌ Payout confirmation failed or amount mismatch`);
+        await client.query(
+          `UPDATE deposits SET status='failed', retry_count = retry_count + 1, failure_reason='Payout mismatch' WHERE id=$1`,
+          [deposit.id]
+        );
+        await client.query("COMMIT");
+        return;
+      }
+      payoutId = confirm.data.payout_id;
+      console.log(`✅ Payout confirmed: ID=${payoutId}, Amount=${payoutAmount}`);
     }
 
-    // Mark SMS as used
+    // 7️⃣ Approve deposit and update wallet
     await client.query(
-      `UPDATE incoming_sms
-       SET is_used = true
-       WHERE id=$1`,
-      [sms.id]
-    );
-
-    console.log(`✅ Local SMS verified for TxnID ${txnId}`);
-
-    // ============================================================
-    // 🔵 STEP 1: VERIFY EXTERNAL API (UNCHANGED)
-    // ============================================================
-
-
-    // ============================================================
-    // 🔵 STEP 2: CONFIRM PAYOUT (UNCHANGED)
-    // ============================================================
-
-    // const confirm = await confirmDeposit(deposit.external_payout_id);
-
-    // const payoutAmount = Number(confirm?.data?.amount);
-
-    // if (
-    //   !confirm?.success ||
-    //   Number.isNaN(payoutAmount) ||
-    //   payoutAmount !== depositAmount - bonusAmount
-    // ) {
-    //   await client.query(
-    //     `UPDATE deposits
-    //      SET status='failed',
-    //          retry_count = retry_count + 1,
-    //          failure_reason = $1
-    //      WHERE id = $2`,
-    //     ["Payout mismatch", deposit.id]
-    //   );
-
-    //   await client.query("COMMIT");
-    //   return;
-    // }
-
-    // ============================================================
-    // 🔵 STEP 3: FINALIZE
-    // ============================================================
-
-    await client.query(
-      `UPDATE deposits 
-       SET status='approved', external_payout_id=$1 
-       WHERE id=$2`,
-      [deposit.id]
+      `UPDATE deposits SET status='approved', external_payout_id=$1 WHERE id=$2`,
+      [payoutId, deposit.id]
     );
 
     await client.query(
-      `UPDATE users 
-       SET wallet = wallet + $1 
-       WHERE id = $2`,
-      [deposit.amount, deposit.user_id]
+      `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+      [depositAmount, deposit.user_id]
     );
 
     await client.query("COMMIT");
-
-    console.log(`✅ Deposit ${deposit.id} auto-approved`);
+    console.log(`🎉 Deposit ID ${deposit.id} auto-approved successfully`);
 
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("❌ Auto approval failed:", err.message);
+    console.error("❌ Auto approval failed:", err);
   } finally {
     client.release();
   }
