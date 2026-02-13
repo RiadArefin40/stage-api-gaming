@@ -2294,7 +2294,7 @@ router.get('/admin/sms', async (req, res) => {
 });
 
 
-// ---------------- ADMIN ROUTES ----------------
+// Get all chats (with unread count)
 // Get all chats with unread count
 router.get("/admin/chats", async (req, res) => {
   const client = await pool.connect();
@@ -2316,8 +2316,9 @@ router.get("/admin/chats", async (req, res) => {
   } finally { client.release(); }
 });
 
-// Get chat messages
+// Get messages for a chat
 router.get("/admin/chats/:chatId/messages", async (req, res) => {
+  const { chatId } = req.params;
   const client = await pool.connect();
   try {
     const { rows } = await client.query(
@@ -2325,18 +2326,19 @@ router.get("/admin/chats/:chatId/messages", async (req, res) => {
        FROM live_chat_messages
        WHERE chat_id = $1
        ORDER BY created_at ASC`,
-      [req.params.chatId]
+      [chatId]
     );
     res.json(rows);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 // Admin send message
 router.post("/admin/chats/:chatId/message", async (req, res) => {
-  const client = await pool.connect();
+  const { chatId } = req.params;
   const { message } = req.body;
-  const chatId = req.params.chatId;
-
+  const client = await pool.connect();
   try {
     const { rows } = await client.query(
       `INSERT INTO live_chat_messages (chat_id, sender, message)
@@ -2346,18 +2348,39 @@ router.post("/admin/chats/:chatId/message", async (req, res) => {
     );
     const savedMsg = rows[0];
 
-    // Emit to room
+    // Emit to all in room + to user if online
     io.to(chatId).emit("receive_message", savedMsg);
 
+    // Also emit unread count to user
+    const { rows: countRows } = await client.query(
+      `SELECT COUNT(*) AS unread
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       AND sender = 'support'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+
+    const userSocketId = Array.from(onlineUsers.values()).find(
+      (sId) => sId === chatId
+    );
+    if (userSocketId) {
+      io.to(userSocketId).emit("unread_count", {
+        chatId,
+        count: Number(countRows[0].unread),
+      });
+    }
+
     res.json(savedMsg);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
-// Mark user messages as read
+// Mark all messages from user as read
 router.post("/admin/chats/:chatId/read", async (req, res) => {
+  const { chatId } = req.params;
   const client = await pool.connect();
-  const chatId = req.params.chatId;
-
   try {
     await client.query(
       `UPDATE live_chat_messages
@@ -2368,7 +2391,7 @@ router.post("/admin/chats/:chatId/read", async (req, res) => {
       [chatId]
     );
 
-    // Return new unread count
+    // return new unread count
     const { rows } = await client.query(
       `SELECT COUNT(*) AS unread
        FROM live_chat_messages
@@ -2379,17 +2402,45 @@ router.post("/admin/chats/:chatId/read", async (req, res) => {
     );
 
     res.json({ success: true, unread_count: Number(rows[0].unread) });
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
-// ---------------- USER ROUTES ----------------
+
+
+router.post("/admin/chats/:chatId/read", async (req, res) => {
+  const { chatId } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query(
+      `UPDATE live_chat_messages
+       SET is_read = TRUE
+       WHERE chat_id = $1
+       AND sender = 'user'
+       AND is_read = FALSE`,
+      [chatId]
+    );
+
+    res.json({ success: true });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+
+// ----------------- ROUTES -----------------
+// Example: init chat for user
 // Init chat
 router.post("/chat/init", async (req, res) => {
-  const client = await pool.connect();
   const { user_id } = req.body;
+  const client = await pool.connect();
   try {
     const existing = await client.query(
-      `SELECT * FROM live_chats WHERE user_id=$1 AND status='open' LIMIT 1`,
+      `SELECT * FROM live_chats WHERE user_id = $1 AND status='open' LIMIT 1`,
       [user_id]
     );
     if (existing.rows.length) return res.json(existing.rows[0]);
@@ -2399,15 +2450,34 @@ router.post("/chat/init", async (req, res) => {
       [user_id]
     );
     res.json(rows[0]);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
+});
+
+// Get messages
+router.get("/chat/:user_id/:chatId/messages", async (req, res) => {
+  const { user_id, chatId } = req.params;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT id, sender, message, created_at, is_read
+       FROM live_chat_messages
+       WHERE chat_id = $1
+       ORDER BY created_at ASC`,
+      [chatId]
+    );
+    res.json(rows);
+  } finally {
+    client.release();
+  }
 });
 
 // User send message
 router.post("/chat/:user_id/:chatId/message", async (req, res) => {
-  const client = await pool.connect();
+  const { user_id, chatId } = req.params;
   const { message } = req.body;
-  const chatId = req.params.chatId;
-
+  const client = await pool.connect();
   try {
     const { rows } = await client.query(
       `INSERT INTO live_chat_messages (chat_id, sender, message)
@@ -2418,16 +2488,16 @@ router.post("/chat/:user_id/:chatId/message", async (req, res) => {
     const savedMsg = rows[0];
 
     io.to(chatId).emit("receive_message", savedMsg);
-
     res.json(savedMsg);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
-// Mark support messages as read
+// Mark messages from support as read
 router.post("/chat/:user_id/:chatId/read", async (req, res) => {
+  const { chatId } = req.params;
   const client = await pool.connect();
-  const chatId = req.params.chatId;
-
   try {
     await client.query(
       `UPDATE live_chat_messages
@@ -2438,26 +2508,62 @@ router.post("/chat/:user_id/:chatId/read", async (req, res) => {
       [chatId]
     );
     res.json({ success: true });
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 // User unread count
 router.get("/chat/:user_id/unread-count", async (req, res) => {
+  const { user_id } = req.params;
   const client = await pool.connect();
-  const user_id = req.params.user_id;
-
   try {
     const { rows } = await client.query(
       `SELECT COUNT(*) AS unread
        FROM live_chat_messages m
        JOIN live_chats c ON c.id = m.chat_id
-       WHERE c.user_id=$1
-       AND m.sender='support'
-       AND m.is_read=FALSE`,
+       WHERE c.user_id = $1
+       AND m.sender = 'support'
+       AND m.is_read = FALSE`,
       [user_id]
     );
     res.json({ unread: Number(rows[0].unread) });
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
+
+
+
+
+
+
+
+
+
+
+
+router.post("/chat/:user_id/:chatId/read", async (req, res) => {
+  const { chatId, user_id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query(
+      `
+      UPDATE live_chat_messages
+      SET is_read = TRUE
+      WHERE chat_id = $1
+      AND sender = 'support'
+      AND is_read = FALSE
+      `,
+      [chatId]
+    );
+
+    res.json({ success: true });
+  } finally {
+    client.release();
+  }
+});
+
 
 export default router;
