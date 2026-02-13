@@ -123,17 +123,21 @@ app.get("/admin/chats", async (req, res) => {
       SELECT
         c.id,
         c.user_id,
+        u.name,                   -- fetch the name field
         c.status,
         MAX(m.created_at) AS last_message_at,
         COUNT(CASE WHEN m.sender = 'user' AND m.is_read = FALSE THEN 1 END) AS unread_count
       FROM live_chats c
       LEFT JOIN live_chat_messages m ON m.chat_id = c.id
-      GROUP BY c.id, c.user_id, c.status
+      LEFT JOIN users u ON u.id = c.user_id
+      GROUP BY c.id, c.user_id, u.name, c.status
       ORDER BY last_message_at DESC
       LIMIT 200
     `);
     res.json(rows);
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 // Get messages for a chat
