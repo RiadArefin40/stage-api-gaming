@@ -2466,5 +2466,113 @@ router.get("/wheel-settings", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+router.get("/wheel-user-info/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const userResult = await pool.query(
+      `SELECT balance, vip_points
+       FROM users
+       WHERE id = $1`,
+      [user_id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const settingsResult = await pool.query(
+      `SELECT spin_cost FROM wheel_settings WHERE id = 1`
+    );
+
+    const spinCost = settingsResult.rows[0].spin_cost;
+    const user = userResult.rows[0];
+
+    res.json({
+      balance: user.balance,
+      vip_points: user.vip_points,
+      spin_cost: spinCost,
+      can_spin: user.vip_points >= spinCost
+    });
+
+  } catch (err) {
+    console.error("wheel-user-info error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+router.get("/spin-history/:user_id", async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT prize_type, prize_value, created_at
+       FROM spin_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [user_id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("spin-history error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/toggle-prize", async (req, res) => {
+  const { prize_id, active } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE wheel_prizes
+       SET active = $1
+       WHERE id = $2`,
+      [active, prize_id]
+    );
+
+    res.json({ message: "Prize status updated" });
+
+  } catch (err) {
+    console.error("toggle-prize error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+router.get("/admin/wheel-prizes", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, type, value, probability, active
+       FROM wheel_prizes
+       ORDER BY id ASC`
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("admin wheel-prizes error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+router.post("/update-prize", async (req, res) => {
+  const { id, type, value, probability } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE wheel_prizes
+       SET type = $1,
+           value = $2,
+           probability = $3
+       WHERE id = $4`,
+      [type, value, probability, id]
+    );
+
+    res.json({ message: "Prize updated" });
+
+  } catch (err) {
+    console.error("update-prize error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 export default router;
