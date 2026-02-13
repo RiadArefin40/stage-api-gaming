@@ -17,52 +17,206 @@ const autoApproveDeposit = async (depositId) => {
       [depositId]
     );
 
-    if (!rows.length) return;
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return;
+    }
 
     const deposit = rows[0];
 
-    // Allow retry only for these states
     if (!["pending", "processing"].includes(deposit.status)) {
       await client.query("ROLLBACK");
       return;
     }
 
-    // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
- // ---------------- STEP 1: VERIFY EXTERNAL API ----------------
-if (!deposit.external_payout_id) {
-  const check = await checkDeposit(deposit.transaction_id);
+    const txnId = deposit.transaction_id?.trim();
+    const depositAmount = Number(deposit.amount);
+    const bonusAmount = Number(deposit.bonus_amount || 0);
 
-  if (!check?.success) {
-    await client.query(
-      `UPDATE deposits
-       SET status = 'processing',
-           retry_count = retry_count + 1,
-           failure_reason = $1
-       WHERE id = $2`,
-      [check.message || "External payout not ready", deposit.id]
+    if (!txnId) {
+      await client.query(
+        `UPDATE deposits
+         SET status='failed',
+             failure_reason='Missing TxnID'
+         WHERE id=$1`,
+        [deposit.id]
+      );
+      await client.query("COMMIT");
+      return;
+    }
+
+    // ============================================================
+    // 🔐 STEP 0: LOCAL SMS VERIFICATION
+    // ============================================================
+
+    // 1️⃣ Prevent duplicate approved TxnID
+    const duplicate = await client.query(
+      `SELECT id FROM deposits
+       WHERE transaction_id=$1
+       AND status='approved'
+       AND id != $2`,
+      [txnId, deposit.id]
     );
 
-    await client.query("COMMIT");
-    return;
-  }
+    if (duplicate.rows.length > 0) {
+      await client.query(
+        `UPDATE deposits
+         SET status='failed',
+             failure_reason='Duplicate TxnID'
+         WHERE id=$1`,
+        [deposit.id]
+      );
+      await client.query("COMMIT");
+      return;
+    }
 
-  await client.query(
-    `UPDATE deposits 
-     SET external_payout_id=$1, status='processing' 
-     WHERE id=$2`,
-    [check.data.payout_id, deposit.id]
-  );
+    // 2️⃣ Find matching SMS from allowed senders only
+    const smsResult = await client.query(
+      `SELECT * FROM incoming_sms
+       WHERE message ILIKE $1
+       AND (
+            LOWER(sender) LIKE '%bkash%' OR
+            LOWER(sender) LIKE '%nagad%' OR
+            LOWER(sender) LIKE '%16216%' OR
+            LOWER(sender) LIKE '%rocket%'
+           )
+       AND (is_used = false OR is_used IS NULL)
+       ORDER BY id DESC
+       LIMIT 1`,
+      [`%${txnId}%`]
+    );
 
-  deposit.external_payout_id = check.data.payout_id;
-}
+    if (!smsResult.rows.length) {
+      await client.query(
+        `UPDATE deposits
+         SET retry_count = retry_count + 1,
+             failure_reason='TxnID not found in SMS'
+         WHERE id=$1`,
+        [deposit.id]
+      );
+      await client.query("COMMIT");
+      return;
+    }
 
+    const sms = smsResult.rows[0];
+    const sender = sms.sender?.toLowerCase() || "";
 
-    // ---------------- STEP 2: CONFIRM PAYOUT ----------------
+    let smsTxnId = null;
+    let smsAmount = null;
+
+    // ========================
+    // 🟣 BKASH
+    // ========================
+    if (sender.includes("bkash")) {
+      const txnMatch = sms.message.match(/TrxID\s+([A-Z0-9]+)/i);
+      const amountMatch = sms.message.match(/received Tk\s*([\d,]+\.\d+)/i);
+
+      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
+      smsAmount = amountMatch
+        ? Number(amountMatch[1].replace(/,/g, ""))
+        : null;
+    }
+
+    // ========================
+    // 🟡 NAGAD
+    // ========================
+    else if (sender.includes("nagad")) {
+      const txnMatch = sms.message.match(/TxnID:\s*([A-Z0-9]+)/i);
+      const amountMatch = sms.message.match(/Amount:\s*Tk\s*([\d,]+\.\d+)/i);
+
+      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
+      smsAmount = amountMatch
+        ? Number(amountMatch[1].replace(/,/g, ""))
+        : null;
+    }
+
+    // ========================
+    // 🔵 ROCKET / 16216
+    // ========================
+    else if (sender.includes("16216") || sender.includes("rocket")) {
+      const txnMatch = sms.message.match(/TxnId:\s*([A-Z0-9]+)/i);
+      const amountMatch = sms.message.match(/Tk\s*([\d,]+\.\d+)/i);
+
+      smsTxnId = txnMatch ? txnMatch[1].trim() : null;
+      smsAmount = amountMatch
+        ? Number(amountMatch[1].replace(/,/g, ""))
+        : null;
+    }
+
+    // Validate TxnID
+    if (!smsTxnId || smsTxnId !== txnId) {
+      await client.query(
+        `UPDATE deposits
+         SET status='failed',
+             failure_reason='TxnID mismatch in SMS'
+         WHERE id=$1`,
+        [deposit.id]
+      );
+      await client.query("COMMIT");
+      return;
+    }
+
+    // Validate Amount
+    if (!smsAmount || smsAmount !== depositAmount) {
+      await client.query(
+        `UPDATE deposits
+         SET status='failed',
+             failure_reason='SMS amount mismatch'
+         WHERE id=$1`,
+        [deposit.id]
+      );
+      await client.query("COMMIT");
+      return;
+    }
+
+    // Mark SMS as used
+    await client.query(
+      `UPDATE incoming_sms
+       SET is_used = true
+       WHERE id=$1`,
+      [sms.id]
+    );
+
+    console.log(`✅ Local SMS verified for TxnID ${txnId}`);
+
+    // ============================================================
+    // 🔵 STEP 1: VERIFY EXTERNAL API (UNCHANGED)
+    // ============================================================
+
+    if (!deposit.external_payout_id) {
+      const check = await checkDeposit(deposit.transaction_id);
+
+      if (!check?.success) {
+        await client.query(
+          `UPDATE deposits
+           SET status = 'processing',
+               retry_count = retry_count + 1,
+               failure_reason = $1
+           WHERE id = $2`,
+          [check.message || "External payout not ready", deposit.id]
+        );
+
+        await client.query("COMMIT");
+        return;
+      }
+
+      await client.query(
+        `UPDATE deposits 
+         SET external_payout_id=$1, status='processing' 
+         WHERE id=$2`,
+        [check.data.payout_id, deposit.id]
+      );
+
+      deposit.external_payout_id = check.data.payout_id;
+    }
+
+    // ============================================================
+    // 🔵 STEP 2: CONFIRM PAYOUT (UNCHANGED)
+    // ============================================================
+
     const confirm = await confirmDeposit(deposit.external_payout_id);
 
     const payoutAmount = Number(confirm?.data?.amount);
-    const depositAmount = Number(deposit.amount);
-    const bonusAmount = Number(deposit.bonus_amount);
 
     if (
       !confirm?.success ||
@@ -82,7 +236,10 @@ if (!deposit.external_payout_id) {
       return;
     }
 
-    // ---------------- STEP 3: FINALIZE ----------------
+    // ============================================================
+    // 🔵 STEP 3: FINALIZE
+    // ============================================================
+
     await client.query(
       `UPDATE deposits 
        SET status='approved', external_payout_id=$1 
