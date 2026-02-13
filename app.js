@@ -90,16 +90,22 @@ io.on("connection", (socket) => {
     // emit to all admins the updated online user IDs
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
+  // Send image
   socket.on("send_image", ({ chatId, sender, image }) => {
-  // broadcast to admins in that chat room
-  console.log(`📷 Image sent in chat ${chatId} by ${sender}`);
-  socket.to(`chat_${chatId}_admins`).emit("receive_image", {
-    chatId,
-    sender,
-    image,
-    id: uuidv4(),
+    const imgMsg = {
+      chatId,
+      sender,
+      image,
+      id: uuidv4(),
+      type: "image",
+      created_at: new Date(),
+    };
+
+    console.log(`📷 Image sent in chat ${chatId} by ${sender}`);
+
+    // emit to everyone in that chat room
+    io.to(`chat_${chatId}`).emit("receive_image", imgMsg);
   });
-});
 
   // Join chat
   socket.on("join_chat", ({ chatId }) => {
