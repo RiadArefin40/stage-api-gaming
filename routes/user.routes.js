@@ -1293,6 +1293,104 @@ router.delete("/hero-slider/:id", async (req, res) => {
   }
 });
 
+router.post("/welcome-banner", upload.single("image"), async (req, res) => {
+  try {
+    const {
+      text = null,
+      position = 0,
+      is_active = true,
+    } = req.body;
+
+    if (!req.file)
+      return res.status(400).json({
+        success: false,
+        message: "Image required",
+      });
+
+    // SAME FOLDER AS HERO
+    const image_url = `/uploads/hero-sliders/${req.file.filename}`;
+
+    const result = await pool.query(
+      `INSERT INTO welcome_banners
+       (image_url, text, position, is_active)
+       VALUES ($1,$2,$3,$4)
+       RETURNING *`,
+      [image_url, text, position, is_active]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("WELCOME BANNER CREATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+router.put("/welcome-banner/:id", upload.single("image"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      image_url: bodyImageUrl,
+      text,
+      position,
+      is_active,
+    } = req.body;
+
+    let image_url = bodyImageUrl;
+
+    // SAME PATH FORMAT AS HERO
+    if (req.file)
+      image_url = `/uploads/hero-sliders/${req.file.filename}`;
+
+    const result = await pool.query(
+      `UPDATE welcome_banners SET
+        image_url = COALESCE($1, image_url),
+        text = COALESCE($2, text),
+        position = COALESCE($3, position),
+        is_active = COALESCE($4, is_active),
+        updated_at = NOW()
+       WHERE id = $5
+       RETURNING *;`,
+      [image_url, text, position, is_active, id]
+    );
+
+    if (result.rowCount === 0)
+      return res.status(404).json({
+        success: false,
+        message: "Banner not found",
+      });
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("WELCOME BANNER UPDATE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+router.get("/welcome-banner", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM welcome_banners ORDER BY position ASC"
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("WELCOME BANNER FETCH ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
 
 /**
  * CREATE event slider
