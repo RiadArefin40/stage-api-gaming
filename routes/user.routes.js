@@ -2287,6 +2287,7 @@ router.get('/affiliate-cron', async (req, res) => {
       type: map.affiliate_settlement_type || 'weekly',
       day: Number(map.affiliate_settlement_day || 1),
       time: map.affiliate_settlement_time || '00:05',
+      percent: Number(map.affiliate_commission_percent || 10),
     });
   } catch (err) {
     console.error(err);
