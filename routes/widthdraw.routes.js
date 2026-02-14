@@ -103,73 +103,41 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/cancel/:id", async (req, res) => {
-  const { id } = req.params;
-  const { user_id } = req.body;
-
-  const client = await pool.connect();
-
+router.post("/withdrawals/cancel/:id", async (req, res) => {
   try {
-    await client.query("BEGIN");
+    const { id } = req.params;
 
-    // 1️⃣ Lock withdrawal row
-    const withdrawalResult = await client.query(
-      `SELECT * FROM withdrawals
-       WHERE id = $1
-       FOR UPDATE`,
+    // Fetch the withdrawal
+    const result = await pool.query(
+      "SELECT * FROM withdrawals WHERE id = $1 AND status = 'pending'",
       [id]
     );
 
-    if (!withdrawalResult.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Withdrawal not found" });
-    }
-
-    const withdrawal = withdrawalResult.rows[0];
-
-    // 2️⃣ Check ownership
-    if (withdrawal.user_id !== user_id) {
-      await client.query("ROLLBACK");
-      return res.status(403).json({ error: "Unauthorized action" });
-    }
-
-    // 3️⃣ Only pending can cancel
-    if (withdrawal.status !== "Pending") {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Only pending withdrawals can be cancelled",
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Pending withdrawal not found",
       });
     }
 
-    // 4️⃣ Refund wallet
-    await client.query(
-      `UPDATE users
-       SET wallet = wallet + $1
-       WHERE id = $2`,
-      [withdrawal.amount, user_id]
+    const withdraw = result.rows[0];
+
+    // Refund wallet
+    await pool.query(
+      "UPDATE users SET wallet = wallet + $1 WHERE id = $2",
+      [withdraw.amount, withdraw.user_id]
     );
 
-    // 5️⃣ Update withdrawal status
-    await client.query(
-      `UPDATE withdrawals
-       SET status = 'cancelled',
-           updated_at = NOW()
-       WHERE id = $1`,
+    // Update withdrawal status
+    await pool.query(
+      "UPDATE withdrawals SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
       [id]
     );
 
-    await client.query("COMMIT");
-
-    res.json({
-      success: true,
-      message: "Withdrawal cancelled and amount refunded",
-    });
+    res.json({ success: true, message: "Withdrawal cancelled successfully" });
   } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("CANCEL WITHDRAW ERROR:", err.message);
-    res.status(500).json({ error: "Internal server error" });
-  } finally {
-    client.release();
+    console.error(err);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
