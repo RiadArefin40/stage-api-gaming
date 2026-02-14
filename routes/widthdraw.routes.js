@@ -134,7 +134,7 @@ router.post("/cancel/:id", async (req, res) => {
     }
 
     // 3️⃣ Only pending can cancel
-    if (withdrawal.status !== "pending") {
+    if (withdrawal.status !== "Pending") {
       await client.query("ROLLBACK");
       return res.status(400).json({
         error: "Only pending withdrawals can be cancelled",
