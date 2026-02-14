@@ -103,7 +103,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/withdrawals/cancel/:id", async (req, res) => {
+router.post("/cancel/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
