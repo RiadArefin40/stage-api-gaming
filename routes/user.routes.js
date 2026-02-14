@@ -2269,6 +2269,7 @@ router.get('/affiliate-cron', async (req, res) => {
       SELECT key, value
       FROM system_settings
       WHERE key IN (
+      'affiliate_commission_percent',
         'affiliate_settlement_enabled',
         'affiliate_settlement_type',
         'affiliate_settlement_day',
@@ -2297,7 +2298,7 @@ router.get('/affiliate-cron', async (req, res) => {
 // PATCH / UPDATE cron config
 // --------------------
 router.patch('/affiliate-cron', async (req, res) => {
-  const { enabled, type, day, time } = req.body;
+  const { enabled, type, day, time, percent } = req.body;
 
   if (!['daily', 'weekly', 'monthly'].includes(type)) {
     return res.status(400).json({ error: 'Invalid type' });
@@ -2318,6 +2319,7 @@ router.patch('/affiliate-cron', async (req, res) => {
       ['affiliate_settlement_type', type],
       ['affiliate_settlement_day', day.toString()],
       ['affiliate_settlement_time', time],
+      ['affiliate_commission_percent', percent ? percent.toString() : '10'],
     ];
 
     for (const [key, value] of updates) {
