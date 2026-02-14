@@ -103,6 +103,75 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.post("/cancel/:id", async (req, res) => {
+  const { id } = req.params;
+  const { user_id } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1️⃣ Lock withdrawal row
+    const withdrawalResult = await client.query(
+      `SELECT * FROM withdrawals
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+
+    if (!withdrawalResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Withdrawal not found" });
+    }
+
+    const withdrawal = withdrawalResult.rows[0];
+
+    // 2️⃣ Check ownership
+    if (withdrawal.user_id !== user_id) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Unauthorized action" });
+    }
+
+    // 3️⃣ Only pending can cancel
+    if (withdrawal.status !== "pending") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Only pending withdrawals can be cancelled",
+      });
+    }
+
+    // 4️⃣ Refund wallet
+    await client.query(
+      `UPDATE users
+       SET wallet = wallet + $1
+       WHERE id = $2`,
+      [withdrawal.amount, user_id]
+    );
+
+    // 5️⃣ Update withdrawal status
+    await client.query(
+      `UPDATE withdrawals
+       SET status = 'cancelled',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: "Withdrawal cancelled and amount refunded",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("CANCEL WITHDRAW ERROR:", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
+  }
+});
 
 // Admin: Approve withdrawal
 router.patch("/:id/approve", async (req, res) => {
