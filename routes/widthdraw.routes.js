@@ -129,10 +129,10 @@ router.post("/cancel/:id", async (req, res) => {
     );
 
     // Update withdrawal status
-    await pool.query(
-      "UPDATE withdrawals SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
-      [id]
-    );
+await pool.query(
+  "UPDATE withdrawals SET status = 'cancelled' WHERE id = $1",
+  [id]
+);
 
     res.json({ success: true, message: "Withdrawal cancelled successfully" });
   } catch (err) {
