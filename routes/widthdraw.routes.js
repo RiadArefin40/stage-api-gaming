@@ -144,7 +144,7 @@ await pool.query(
       [
         withdraw.user_id,
         "Withdrawal Rejected",
-        `Your withdrawal of ৳${withdraw.amount} has been rejected and refunded.`,
+        `Your withdrawal of ৳${withdraw.amount} has been cancelled and refunded.`,
         "error",
       ]
     );
