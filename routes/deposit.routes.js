@@ -631,6 +631,7 @@ router.patch("/:id/:action", async (req, res) => {
     }
 
     const deposit = depositResult.rows[0];
+    const bonusAmount = Number(deposit.bonus_amount || 0);
 
     if (deposit.status === action) {
       await client.query("ROLLBACK");
@@ -660,7 +661,7 @@ router.patch("/:id/:action", async (req, res) => {
         if (action === "approved") {
           await client.query(
             `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
-            [deposit.amount, ownerId]
+            [Number(deposit.amount) - bonusAmount, ownerId]
           );
         }
       }
