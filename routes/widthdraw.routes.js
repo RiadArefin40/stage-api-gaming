@@ -134,6 +134,21 @@ await pool.query(
   [id]
 );
 
+    // Insert notification
+    await client.query(
+      `
+      INSERT INTO notifications
+      (user_id, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, false)
+      `,
+      [
+        withdraw.user_id,
+        "Withdrawal Rejected",
+        `Your withdrawal of ৳${withdraw.amount} has been rejected and refunded.`,
+        "error",
+      ]
+    );
+
     res.json({ success: true, message: "Withdrawal cancelled successfully" });
   } catch (err) {
     console.error(err);
