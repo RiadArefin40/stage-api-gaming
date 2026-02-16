@@ -135,7 +135,7 @@ await pool.query(
 );
 
     // Insert notification
-    await client.query(
+    await pool.query(
       `
       INSERT INTO notifications
       (user_id, title, message, type, is_read)
