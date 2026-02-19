@@ -2749,7 +2749,7 @@ router.put("/update-wheel-prize/:id", async (req, res) => {
   }
 });
 
-app.post("/claim-vip", async (req, res) => {
+router.post("/claim-vip", async (req, res) => {
 
   const client = await pool.connect();
 
