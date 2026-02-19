@@ -2749,4 +2749,87 @@ router.put("/update-wheel-prize/:id", async (req, res) => {
   }
 });
 
+app.post("/claim-vip", async (req, res) => {
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 🔐 Lock user
+    const userRes = await client.query(
+      "SELECT id, wallet FROM users WHERE name ILIKE $1 FOR UPDATE",
+      [mobile]
+    );
+
+    if (!userRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const user = userRes.rows[0];
+
+    // 🔐 Lock VIP rows
+    const vipRes = await client.query(
+      "SELECT SUM(vip_points) as total_points FROM user_bets WHERE user_id=$1 FOR UPDATE",
+      [user.id]
+    );
+
+    const totalPoints = parseFloat(vipRes.rows[0].total_points) || 0;
+
+    if (totalPoints < 1000) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Not enough VIP points (Minimum 1000 required)"
+      });
+    }
+
+    // 🎯 Calculate claim
+    const claimAmount = Math.floor(totalPoints / 1000); // 1000 = 1
+    const usedPoints = claimAmount * 1000;
+    const remainingPoints = totalPoints - usedPoints;
+    const newWallet = parseFloat(user.wallet) + claimAmount;
+
+    // 💰 Update wallet
+    await client.query(
+      "UPDATE users SET wallet=$1 WHERE id=$2",
+      [newWallet, user.id]
+    );
+
+    // 🔄 Reset VIP points properly
+    await client.query(
+      "UPDATE user_bets SET vip_points=0 WHERE user_id=$1",
+      [user.id]
+    );
+
+    // Optional: If you want to keep remaining points instead of reset:
+    /*
+    await client.query(
+      `UPDATE user_bets
+       SET vip_points = GREATEST(vip_points - $1, 0)
+       WHERE user_id=$2`,
+      [usedPoints, user.id]
+    );
+    */
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      claimed: claimAmount,
+      remainingPoints,
+      newWallet
+    });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("VIP Claim Error:", err);
+    res.status(500).json({ success: false });
+  } finally {
+    client.release();
+  }
+});
+
+
 export default router;
