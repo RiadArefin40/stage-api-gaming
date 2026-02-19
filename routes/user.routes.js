@@ -2750,7 +2750,8 @@ router.put("/update-wheel-prize/:id", async (req, res) => {
 });
 
 router.post("/claim-vip", async (req, res) => {
-
+  const { mobile } = req.body;
+  if (!mobile) return res.status(400).json({ error: "Missing mobile" });
   const client = await pool.connect();
 
   try {
