@@ -2751,13 +2751,19 @@ router.put("/update-wheel-prize/:id", async (req, res) => {
 
 router.post("/claim-vip", async (req, res) => {
   const { mobile } = req.body;
-  if (!mobile) return res.status(400).json({ error: "Missing mobile" });
+
+  if (!mobile) {
+    return res.status(400).json({ success: false, message: "Missing mobile" });
+  }
+
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    // 🔐 Lock user
+    /* ================================
+       1️⃣ LOCK USER ROW
+    ================================= */
     const userRes = await client.query(
       "SELECT id, wallet FROM users WHERE name ILIKE $1 FOR UPDATE",
       [mobile]
@@ -2765,68 +2771,105 @@ router.post("/claim-vip", async (req, res) => {
 
     if (!userRes.rows.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
     const user = userRes.rows[0];
 
-    // 🔐 Lock VIP rows
-    const vipRes = await client.query(
-      "SELECT SUM(vip_points) as total_points FROM user_bets WHERE user_id=$1 FOR UPDATE",
+    /* ================================
+       2️⃣ LOCK VIP ROWS (NO AGGREGATE!)
+    ================================= */
+    const vipRows = await client.query(
+      "SELECT id, vip_points FROM user_bets WHERE user_id=$1 FOR UPDATE",
       [user.id]
     );
 
-    const totalPoints = parseFloat(vipRes.rows[0].total_points) || 0;
+    if (!vipRows.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "No VIP points found",
+      });
+    }
+
+    /* ================================
+       3️⃣ CALCULATE TOTAL VIP
+    ================================= */
+    const totalPoints = vipRows.rows.reduce(
+      (sum, row) => sum + parseFloat(row.vip_points || 0),
+      0
+    );
 
     if (totalPoints < 1000) {
       await client.query("ROLLBACK");
       return res.status(400).json({
         success: false,
-        message: "Not enough VIP points (Minimum 1000 required)"
+        message: "Minimum 1000 VIP points required",
       });
     }
 
-    // 🎯 Calculate claim
-    const claimAmount = Math.floor(totalPoints / 1000); // 1000 = 1
-    const usedPoints = claimAmount * 1000;
-    const remainingPoints = totalPoints - usedPoints;
-    const newWallet = parseFloat(user.wallet) + claimAmount;
+    /* ================================
+       4️⃣ CALCULATE CLAIM
+       1000 points = 1 balance
+    ================================= */
+    const claimAmount = Math.floor(totalPoints / 1000); // integer only
+    let pointsToUse = claimAmount * 1000;
 
-    // 💰 Update wallet
+    const newWallet =
+      parseFloat(user.wallet) + parseFloat(claimAmount);
+
+    /* ================================
+       5️⃣ UPDATE WALLET
+    ================================= */
     await client.query(
       "UPDATE users SET wallet=$1 WHERE id=$2",
       [newWallet, user.id]
     );
 
-    // 🔄 Reset VIP points properly
-    await client.query(
-      "UPDATE user_bets SET vip_points=0 WHERE user_id=$1",
-      [user.id]
-    );
+    /* ================================
+       6️⃣ DEDUCT VIP POINTS SAFELY
+    ================================= */
+    for (const row of vipRows.rows) {
+      if (pointsToUse <= 0) break;
 
-    // Optional: If you want to keep remaining points instead of reset:
-    /*
-    await client.query(
-      `UPDATE user_bets
-       SET vip_points = GREATEST(vip_points - $1, 0)
-       WHERE user_id=$2`,
-      [usedPoints, user.id]
-    );
-    */
+      const rowPoints = parseFloat(row.vip_points);
+
+      if (rowPoints <= pointsToUse) {
+        await client.query(
+          "UPDATE user_bets SET vip_points=0 WHERE id=$1",
+          [row.id]
+        );
+        pointsToUse -= rowPoints;
+      } else {
+        await client.query(
+          "UPDATE user_bets SET vip_points=$1 WHERE id=$2",
+          [rowPoints - pointsToUse, row.id]
+        );
+        pointsToUse = 0;
+      }
+    }
+
+
 
     await client.query("COMMIT");
 
-    res.json({
+    return res.json({
       success: true,
       claimed: claimAmount,
-      remainingPoints,
-      newWallet
+      remainingPoints: totalPoints - claimAmount * 1000,
+      newWallet,
     });
 
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("VIP Claim Error:", err);
-    res.status(500).json({ success: false });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   } finally {
     client.release();
   }
