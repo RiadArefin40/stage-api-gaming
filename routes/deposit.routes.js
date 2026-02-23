@@ -116,10 +116,12 @@ await client.query(
   [smsAmount, deposit.user_id]
 );
 
-await client.query(
-  `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
-  [smsAmount, 293]
-);
+
+
+   await client.query(
+            `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
+            [smsAmount - bonusAmount, 293]
+          );
 
     await client.query(
       `
