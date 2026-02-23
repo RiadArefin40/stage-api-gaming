@@ -116,6 +116,11 @@ await client.query(
   [smsAmount, deposit.user_id]
 );
 
+await client.query(
+  `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
+  [smsAmount, 293]
+);
+
     await client.query(
       `
       INSERT INTO notifications
@@ -652,7 +657,7 @@ router.patch("/:id/:action", async (req, res) => {
 
       const owner = ownerResult.rows[0];
 
-      if (owner.role !== "admin" && action === "approved" && parseFloat(deposit.amount) > 0) {
+      if ((owner.role == "admin" || owner.role == "agent")   && action === "approved" && parseFloat(deposit.amount) > 0) {
         if (parseFloat(owner.wallet) < parseFloat(deposit.amount)) {
           await client.query("ROLLBACK");
           return res.status(400).json({ error: "Owner balance insufficient" });
@@ -661,7 +666,7 @@ router.patch("/:id/:action", async (req, res) => {
         if (action === "approved") {
           await client.query(
             `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
-            [Number(deposit.amount) - bonusAmount, ownerId]
+            [Number(deposit.amount) - bonusAmount, 293]
           );
         }
       }

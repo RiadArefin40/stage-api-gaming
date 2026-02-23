@@ -175,6 +175,7 @@ router.patch("/:id/approve", async (req, res) => {
       return res.status(404).json({ error: "Withdrawal not found" });
     }
 
+    
     const w = withdrawalRes.rows[0];
 
     if (w.status === "approved") {
@@ -187,6 +188,12 @@ router.patch("/:id/approve", async (req, res) => {
       "UPDATE withdrawals SET status = 'approved' WHERE id = $1",
       [id]
     );
+
+
+    await client.query(
+  `UPDATE users SET wallet = wallet + $1 WHERE id=$2`,
+  [w.amount, 293]
+);
 
     // Create notification
     await client.query(
