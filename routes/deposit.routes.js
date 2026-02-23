@@ -120,8 +120,10 @@ await client.query(
 
    await client.query(
             `UPDATE users SET wallet = wallet - $1 WHERE id=$2`,
-            [smsAmount - bonusAmount, 293]
+            [smsAmount , 293]
           );
+
+ console.log('updated agent balance',smsAmount )     
 
     await client.query(
       `
