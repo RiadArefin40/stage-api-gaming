@@ -658,10 +658,10 @@ router.patch("/:id/:action", async (req, res) => {
       const owner = ownerResult.rows[0];
 
       if ((owner.role == "admin" || owner.role == "agent")   && action === "approved" && parseFloat(deposit.amount) > 0) {
-        if (parseFloat(owner.wallet) < parseFloat(deposit.amount)) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({ error: "Owner balance insufficient" });
-        }
+        // if (parseFloat(owner.wallet) < parseFloat(deposit.amount)) {
+        //   await client.query("ROLLBACK");
+        //   return res.status(400).json({ error: "Owner balance insufficient" });
+        // }
 
         if (action === "approved") {
           await client.query(
